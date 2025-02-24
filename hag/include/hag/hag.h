@@ -1,7 +1,7 @@
 #ifndef HAG_H
 #define HAG_H
 
-#include "vulkan/vulkan.h"
+#include "vulkan/vulkan_core.h"
 #include "GLFW/glfw3.h"
 
 namespace hag {
