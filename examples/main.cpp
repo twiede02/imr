@@ -4,6 +4,13 @@
 
 auto tmp(auto&& t) { return &t; }
 
+#include <ctime>
+static uint64_t shd_get_time_nano() {
+    struct timespec t;
+    timespec_get(&t, TIME_UTC);
+    return t.tv_sec * 1000000000 + t.tv_nsec;
+}
+
 int main()
 {
     auto instance = vkb::InstanceBuilder()
@@ -59,8 +66,28 @@ int main()
         .flags = 0,
     }), nullptr, &next_fence);
 
+    uint64_t last_epoch = shd_get_time_nano();
+    int frames_since_last_epoch = 0;
+
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+
+        uint64_t now = shd_get_time_nano();
+        uint64_t delta = now - last_epoch;
+        if (delta > 1000000000 /* 1 second */) {
+            last_epoch = now;
+            if (frames_since_last_epoch > 0) {
+                int fps = frames_since_last_epoch;
+                float avg_frametime = (delta / 1000000.0f /* scale to ms */) / frames_since_last_epoch;
+                std::string str = "Fps: ";
+                str.append(std::to_string(fps));
+                str.append(", Avg frametime: ");
+                str.append(std::to_string(avg_frametime));
+                str.append("ms");
+                glfwSetWindowTitle(window, str.c_str());
+            }
+            frames_since_last_epoch = 0;
+        }
 
         VkSemaphore image_acquired;
         vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
@@ -162,6 +189,8 @@ int main()
             .pSwapchains = &swapchain.swapchain,
             .pImageIndices = tmp(image_index),
         }));
+
+        frames_since_last_epoch++;
 
         std::swap(last_fence, next_fence);
     }
