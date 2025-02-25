@@ -21,6 +21,10 @@ int main()
     glfwCreateWindowSurface(instance, window, nullptr, &surface);
 
     auto phys_device = vkb::PhysicalDeviceSelector(instance)
+        .add_required_extension("VK_KHR_multiview")
+        .add_required_extension("VK_KHR_maintenance2")
+        .add_required_extension("VK_KHR_create_renderpass2")
+        .add_required_extension("VK_KHR_depth_stencil_resolve")
         .add_required_extension("VK_KHR_dynamic_rendering")
         .add_required_extension("VK_KHR_synchronization2")
         .set_surface(surface)
