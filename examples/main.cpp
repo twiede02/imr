@@ -176,11 +176,6 @@ int main()
             .pSignalSemaphores = &ready2present,
         }), next_fence);
 
-        /*vkWaitSemaphores(device.device, tmp((VkSemaphoreWaitInfo) {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
-            .semaphoreCount = 1,
-            .pSemaphores = &ready2present,
-        }), UINT64_MAX);*/
         device_dispatch.queuePresentKHR(queue, tmp((VkPresentInfoKHR) {
             .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
             .waitSemaphoreCount = 1,
