@@ -15,6 +15,7 @@ inline auto tmp(auto&& t) { return &t; }
 namespace hag {
     struct Context {
         Context();
+        Context(Context&) = delete;
         ~Context();
 
         VkInstance instance;
@@ -31,9 +32,23 @@ namespace hag {
             vkb::DispatchTable device;
         } dispatch_tables;
 
-        VkImage make_image2d(uint32_t width, uint32_t height, VkFormat, VkImageUsageFlags usage);
-    private:
         class Impl;
+        std::unique_ptr<Impl> _impl;
+    };
+
+    struct Image {
+        VkImageType dim;
+        VkExtent3D size;
+        VkFormat format;
+        VkImageUsageFlagBits usage;
+
+        VkImage handle;
+
+        Image(Context&, VkImageType dim, VkExtent3D size, VkFormat format, VkImageUsageFlagBits usage);
+        Image(Image&) = delete;
+        ~Image();
+
+        struct Impl;
         std::unique_ptr<Impl> _impl;
     };
 
@@ -43,7 +58,7 @@ namespace hag {
 
         void add_to_delete_queue(std::function<void(void)>&& fn);
         void present(VkImage image, VkFence signal_when_reusable);
-    private:
+
         class Impl;
         std::unique_ptr<Impl> _impl;
     };

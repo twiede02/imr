@@ -3,6 +3,8 @@
 #include "VkBootstrap.h"
 
 #include <ctime>
+#include <memory>
+
 static uint64_t shd_get_time_nano() {
     struct timespec t;
     timespec_get(&t, TIME_UTC);
@@ -35,7 +37,6 @@ int main()
     int frames_since_last_epoch = 0;
 
     while (!glfwWindowShouldClose(window)) {
-        glfwPollEvents();
 
         uint64_t now = shd_get_time_nano();
         uint64_t delta = now - last_epoch;
@@ -55,10 +56,18 @@ int main()
         }
 
         vkWaitForFences(context.device, 1, &last_fence, VK_TRUE, UINT64_MAX);
-        swapchain.present(VK_NULL_HANDLE, next_fence);
+
+        VkExtent3D extents = { 1024, 768, 1};
+        auto image = new hag::Image (context, VK_IMAGE_TYPE_2D, extents, VK_FORMAT_R8G8B8A8_UNORM, (VkImageUsageFlagBits) (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT));
+
+        swapchain.add_to_delete_queue([=]() {
+            delete image;
+        });
+        swapchain.present(image->handle, next_fence);
 
         frames_since_last_epoch++;
         std::swap(last_fence, next_fence);
+        glfwPollEvents();
     }
 
     vkDeviceWaitIdle(context.device);

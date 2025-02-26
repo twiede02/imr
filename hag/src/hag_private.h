@@ -10,6 +10,9 @@ struct Context::Impl {
     vkb::Device vkb_device;
 
     VmaAllocator allocator;
+
+    //std::vector<std::unique_ptr<Buffer>> buffers;
+    std::vector<std::unique_ptr<Image>> images;
 };
 
 }

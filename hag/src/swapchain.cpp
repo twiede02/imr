@@ -160,6 +160,11 @@ Swapchain::~Swapchain() {
     for (auto& per_image : _impl->in_flight) {
         vkDestroySemaphore(context.device, per_image.image_acquired, nullptr);
         vkDestroySemaphore(context.device, per_image.ready2present, nullptr);
+
+        for (auto& fn : per_image.cleanup_queue) {
+            fn();
+        }
+        per_image.cleanup_queue.clear();
     }
     vkb::destroy_swapchain(_impl->swapchain);
     _impl.reset();

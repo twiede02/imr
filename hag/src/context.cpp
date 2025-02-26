@@ -59,30 +59,6 @@ Context::Context() {
     }), &_impl->allocator), throw std::exception());
 }
 
-VkImage Context::make_image2d(uint32_t width, uint32_t height, VkFormat format, VkImageUsageFlags usage) {
-    VkImageCreateInfo image_create_info = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType = VK_IMAGE_TYPE_2D,
-        .format = format,
-        .extent = { .width = width, .height = height, .depth = 1 },
-        .mipLevels = 1,
-        .arrayLayers = 1,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = usage,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-    };
-    VmaAllocationCreateInfo alloc_info = {
-        .flags = 0,
-        // .usage = VMA_MEMORY_USAGE_AUTO,
-    };
-    VkImage image;
-    VmaAllocation allocation;
-    vmaCreateImage(_impl->allocator, &image_create_info, &alloc_info, &image, &allocation, nullptr);
-    return image;
-}
-
 Context::~Context() {
     vkDeviceWaitIdle(device);
 
