@@ -11,14 +11,13 @@ static uint64_t shd_get_time_nano() {
     return t.tv_sec * 1000000000 + t.tv_nsec;
 }
 
-int main()
-{
+int main() {
     hag::Context context;
+    auto& vk = context.dispatch_tables.device;
 
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 768, "HAG", nullptr, nullptr);
-
     hag::Swapchain swapchain(context, window);
 
     VkFence last_fence;
@@ -58,12 +57,72 @@ int main()
         vkWaitForFences(context.device, 1, &last_fence, VK_TRUE, UINT64_MAX);
 
         VkExtent3D extents = { 1024, 768, 1};
-        auto image = new hag::Image (context, VK_IMAGE_TYPE_2D, extents, VK_FORMAT_R8G8B8A8_UNORM, (VkImageUsageFlagBits) (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT));
+        auto image = new hag::Image (context, VK_IMAGE_TYPE_2D, extents, VK_FORMAT_R8G8B8A8_UNORM, (VkImageUsageFlagBits) (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT));
 
-        swapchain.add_to_delete_queue([=]() {
+        VkCommandBuffer cmdbuf;
+        vkAllocateCommandBuffers(context.device, tmp((VkCommandBufferAllocateInfo) {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool = context.pool,
+            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1,
+        }), &cmdbuf);
+
+        vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        }));
+
+        VkSemaphore sem;
+        vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        }), nullptr, &sem);
+        vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+            .dependencyFlags = 0,
+            .imageMemoryBarrierCount = 1,
+            .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
+                .srcAccessMask = VK_ACCESS_2_NONE,
+                .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .image = image->handle,
+                .subresourceRange = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .levelCount = 1,
+                    .layerCount = 1,
+                }
+            }),
+        }));
+
+        vk.cmdClearColorImage(cmdbuf, image->handle, VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
+                .float32 = { 1.0f, 1.0f, 0.0f, 1.0f},
+            }), 1, tmp((VkImageSubresourceRange) {
+                .aspectMask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .levelCount = 1,
+                .layerCount = 1
+            }));
+        vkEndCommandBuffer(cmdbuf);
+        vk.queueSubmit(context.main_queue, 1, tmp((VkSubmitInfo) {
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .waitSemaphoreCount = 0,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &cmdbuf,
+            .signalSemaphoreCount = 1,
+            .pSignalSemaphores = &sem,
+        }), VK_NULL_HANDLE);
+
+        // vkTransitionImageLayoutEXT(context.device, 1, tmp((VkHostImageLayoutTransitionInfoEXT) {
+        //
+        // }))
+
+        swapchain.add_to_delete_queue([=, &context]() {
             delete image;
+            vkDestroySemaphore(context.device, sem, nullptr);
         });
-        swapchain.present(image->handle, next_fence);
+        swapchain.present(image->handle, next_fence, { sem });
 
         frames_since_last_epoch++;
         std::swap(last_fence, next_fence);

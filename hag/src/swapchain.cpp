@@ -52,7 +52,7 @@ void Swapchain::add_to_delete_queue(std::function<void()>&& fn) {
     per_image.cleanup_queue.push_back(std::move(fn));
 }
 
-void Swapchain::present(VkImage image, VkFence signal_when_reusable, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
+void Swapchain::present(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
     _impl->in_flight_counter = (_impl->in_flight_counter + 1) % _impl->swapchain.image_count;
 
     auto& per_image = _impl->in_flight[_impl->in_flight_counter];
@@ -154,11 +154,17 @@ void Swapchain::present(VkImage image, VkFence signal_when_reusable, VkImageLayo
         }),
     }));
 
+    uint32_t semaphores_count = 1;
+    VkSemaphore semaphores[2] = { per_image.image_acquired };
+    if (sem) {
+        semaphores[semaphores_count++] = *sem;
+    }
+
     vkEndCommandBuffer(cmdbuf);
     vk.queueSubmit(context.main_queue, 1, tmp((VkSubmitInfo) {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &per_image.image_acquired,
+        .waitSemaphoreCount = semaphores_count,
+        .pWaitSemaphores = semaphores,
         .pWaitDstStageMask = tmp(VkPipelineStageFlags(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT)),
         .commandBufferCount = 1,
         .pCommandBuffers = &cmdbuf,

@@ -14,6 +14,15 @@
 inline auto tmp(auto&& t) { return &t; }
 
 namespace hag {
+
+    struct Buffer {
+        VkBuffer handle;
+        VkDeviceAddress device_address;
+
+        struct Impl;
+        std::unique_ptr<Impl> _impl;
+    };
+
     struct Context {
         Context();
         Context(Context&) = delete;
@@ -63,7 +72,7 @@ namespace hag {
         ~Swapchain();
 
         void add_to_delete_queue(std::function<void(void)>&& fn);
-        void present(VkImage image, VkFence signal_when_reusable, VkImageLayout layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
+        void present(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> wait_for, VkImageLayout layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
 
         class Impl;
         std::unique_ptr<Impl> _impl;
