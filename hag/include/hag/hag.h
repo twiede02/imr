@@ -7,6 +7,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 
 #define CHECK_VK(op, else) if (op != VK_SUCCESS) { else; }
 
@@ -52,12 +53,17 @@ namespace hag {
         std::unique_ptr<Impl> _impl;
     };
 
+    struct ImageState {
+        Image& image;
+        VkImageLayout layout;
+    };
+
     struct Swapchain {
         Swapchain(Context&, GLFWwindow* window);
         ~Swapchain();
 
         void add_to_delete_queue(std::function<void(void)>&& fn);
-        void present(VkImage image, VkFence signal_when_reusable);
+        void present(VkImage image, VkFence signal_when_reusable, VkImageLayout layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
 
         class Impl;
         std::unique_ptr<Impl> _impl;

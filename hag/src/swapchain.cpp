@@ -52,7 +52,7 @@ void Swapchain::add_to_delete_queue(std::function<void()>&& fn) {
     per_image.cleanup_queue.push_back(std::move(fn));
 }
 
-void Swapchain::present(VkImage image, VkFence signal_when_reusable) {
+void Swapchain::present(VkImage image, VkFence signal_when_reusable, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
     _impl->in_flight_counter = (_impl->in_flight_counter + 1) % _impl->swapchain.image_count;
 
     auto& per_image = _impl->in_flight[_impl->in_flight_counter];
@@ -102,13 +102,37 @@ void Swapchain::present(VkImage image, VkFence signal_when_reusable) {
             }
         }),
     }));
-    vk.cmdClearColorImage(cmdbuf, _impl->swapchain.get_images().value()[image_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, tmp((VkClearColorValue) {
-        .float32 = { 1.0f, 0.0f, 0.0f, 1.0f},
-    }), 1, tmp((VkImageSubresourceRange) {
-        .aspectMask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
-        .levelCount = 1,
-        .layerCount = 1
-    }));
+    VkExtent2D src_size;
+    if (image_size)
+        src_size = *image_size;
+    else
+        src_size = _impl->swapchain.extent;
+    vk.cmdBlitImage(cmdbuf, image, src_layout, _impl->swapchain.get_images().value()[image_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, tmp((VkImageBlit) {
+        .srcSubresource = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .layerCount = 1,
+        },
+        .srcOffsets = {
+            {},
+            {
+                .x = (int32_t) src_size.width,
+                .y = (int32_t) src_size.height,
+                .z = 1,
+            }
+        },
+        .dstSubresource = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .layerCount = 1,
+        },
+        .dstOffsets = {
+            {},
+            {
+                .x = (int32_t) _impl->swapchain.extent.width,
+                .y = (int32_t) _impl->swapchain.extent.height,
+                .z = 1,
+            },
+        }
+    }), VK_FILTER_LINEAR);
     vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .dependencyFlags = 0,
