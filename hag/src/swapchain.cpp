@@ -156,7 +156,9 @@ void Swapchain::present(VkImage image, VkFence signal_when_reusable, std::option
 
     uint32_t semaphores_count = 1;
     VkSemaphore semaphores[2] = { per_image.image_acquired };
+    VkPipelineStageFlags stage_flags[2] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
     if (sem) {
+        stage_flags[semaphores_count] = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         semaphores[semaphores_count++] = *sem;
     }
 
@@ -165,7 +167,7 @@ void Swapchain::present(VkImage image, VkFence signal_when_reusable, std::option
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = semaphores_count,
         .pWaitSemaphores = semaphores,
-        .pWaitDstStageMask = tmp(VkPipelineStageFlags(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT)),
+        .pWaitDstStageMask = stage_flags,
         .commandBufferCount = 1,
         .pCommandBuffers = &cmdbuf,
         .signalSemaphoreCount = 1,
