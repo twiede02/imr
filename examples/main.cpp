@@ -6,13 +6,24 @@
 #include <ctime>
 #include <memory>
 
+struct vec2 { float x, y; };
+
+struct push_constants {
+    vec2 tri[3] = {
+        { -0.5, 0.5 },
+        { 0, -0.5 },
+        { 0.5, 0.5}
+    };
+    float time;
+} push_constants;
+
 int main() {
     hag::Context context;
     auto& vk = context.dispatch_tables.device;
 
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    auto window = glfwCreateWindow(1024, 768, "HAG", nullptr, nullptr);
+    auto window = glfwCreateWindow(1024, 1024, "HAG", nullptr, nullptr);
     hag::Swapchain swapchain(context, window);
 
     VkFence last_fence;
@@ -59,7 +70,12 @@ int main() {
     CHECK_VK(vkCreatePipelineLayout(context.device, tmp((VkPipelineLayoutCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = 1,
-        .pSetLayouts = &set0_layout
+        .pSetLayouts = &set0_layout,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = tmp((VkPushConstantRange) {
+            .stageFlags = VK_SHADER_STAGE_ALL,
+            .size = sizeof(push_constants),
+        })
     }), nullptr, &layout), abort());
 
     VkPipeline pipeline;
@@ -71,7 +87,7 @@ int main() {
             .flags = 0,
             .stage = VK_SHADER_STAGE_COMPUTE_BIT,
             .module = module,
-            .pName = "main"
+            .pName = "main",
         },
         .layout = layout,
     }), nullptr, &pipeline), abort());
@@ -108,7 +124,9 @@ int main() {
 
         vkWaitForFences(context.device, 1, &last_fence, VK_TRUE, UINT64_MAX);
 
-        VkExtent3D extents = { 1024, 768, 1};
+        int width, height;
+        glfwGetWindowSize(window, &width, &height);
+        VkExtent3D extents = { static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
         auto image = new hag::Image (context, VK_IMAGE_TYPE_2D, extents, VK_FORMAT_R8G8B8A8_UNORM, (VkImageUsageFlagBits) (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT));
 
         VkCommandBuffer cmdbuf;
@@ -211,8 +229,11 @@ int main() {
             }),
         }), 0, nullptr);
 
+        push_constants.time = ((shd_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
+
         vk.cmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
         vk.cmdBindDescriptorSets(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 1, &set, 0, nullptr);
+        vk.cmdPushConstants(cmdbuf, layout, VK_SHADER_STAGE_ALL, 0, sizeof(push_constants), &push_constants);
         vk.cmdDispatch(cmdbuf, (image->size.width + 31) / 32, (image->size.height + 31) / 32, 1);
         vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
             .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,

@@ -9,6 +9,7 @@ Context::Context() {
         .use_default_debug_messenger()
         .request_validation_layers()
         .set_minimum_instance_version(1, 2, 0)
+        .require_api_version(1, 2, 0)
         .build(); built.has_value())
     {
         _impl->vkb_instance = built.value();
@@ -23,6 +24,17 @@ Context::Context() {
         .add_required_extension("VK_KHR_depth_stencil_resolve")
         .add_required_extension("VK_KHR_dynamic_rendering")
         .add_required_extension("VK_KHR_synchronization2")
+        .set_minimum_version(1, 2)
+        .set_required_features((VkPhysicalDeviceFeatures) {
+            .shaderUniformBufferArrayDynamicIndexing = true,
+        })
+        .set_required_features_11((VkPhysicalDeviceVulkan11Features) {
+        })
+        .set_required_features_12((VkPhysicalDeviceVulkan12Features) {
+            .scalarBlockLayout = true
+        })
+        .set_required_features_13((VkPhysicalDeviceVulkan13Features) {
+        })
         // .set_surface(surface)
         .defer_surface_initialization()
         .add_required_extension_features((VkPhysicalDeviceSynchronization2FeaturesKHR) {
