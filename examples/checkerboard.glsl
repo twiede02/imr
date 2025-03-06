@@ -50,8 +50,8 @@ layout(scalar, push_constant) uniform T {
 } push_constants;
 
 bool is_inside_edge(vec2 e0, vec2 e1, vec2 p) {
-    //if (e1.y == e0.y)
-    //  return e1.y < p.y;
+    if (e1.x == e0.x)
+      return (e1.x > p.x) ^^ (e0.y > e1.y);
     float a = (e1.y - e0.y) / (e1.x - e0.x);
     float b = e0.y + (0 - e0.x) * a;
     float ey = a * p.x + b;
