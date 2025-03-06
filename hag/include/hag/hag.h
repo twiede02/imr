@@ -9,7 +9,9 @@
 #include <memory>
 #include <optional>
 
-#define CHECK_VK(op, else) if (op != VK_SUCCESS) { else; }
+#include <cstdio>
+
+#define CHECK_VK(op, else) if (op != VK_SUCCESS) { printf("Check failed at %s\n", #op); else; }
 
 inline auto tmp(auto&& t) { return &t; }
 
