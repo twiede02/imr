@@ -36,7 +36,6 @@ int main() {
     int frames_since_last_epoch = 0;
 
     while (!glfwWindowShouldClose(window)) {
-
         uint64_t now = shd_get_time_nano();
         uint64_t delta = now - last_epoch;
         if (delta > 1000000000 /* 1 second */) {
@@ -122,7 +121,7 @@ int main() {
             delete image;
             vkDestroySemaphore(context.device, sem, nullptr);
         });
-        swapchain.present(image->handle, next_fence, { sem });
+        swapchain.present(image->handle, next_fence, { sem }, VK_IMAGE_LAYOUT_GENERAL, std::make_optional<VkExtent2D>(image->size.width, image->size.height));
 
         frames_since_last_epoch++;
         std::swap(last_fence, next_fence);
