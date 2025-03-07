@@ -84,6 +84,27 @@ bool shd_write_file(const char* filename, size_t size, const char* data) {
     return false;
 }
 
-enum {
-    ThreadLocalStaticBufferSize = 256
-};
+#include <assert.h>
+#ifdef WIN32
+#include <windows.h>
+#elif __APPLE__
+#include <mach-o/dyld.h>
+#include <limits.h>
+#else
+#include <unistd.h>
+#include <stdio.h>
+#endif
+const char* shd_get_executable_location(void) {
+    size_t len = 256;
+    char* buf = calloc(len + 1, 1);
+#ifdef WIN32
+    size_t final_len = GetModuleFileNameA(NULL, buf, len);
+#elif __APPLE__
+    uint32_t final_len = len;
+    _NSGetExecutablePath(buf, &final_len);
+#else
+    size_t final_len = readlink("/proc/self/exe", buf, len);
+#endif
+    assert(final_len <= len);
+    return buf;
+}

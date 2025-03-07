@@ -5,6 +5,7 @@
 
 #include <ctime>
 #include <memory>
+#include <filesystem>
 
 struct vec2 { float x, y; };
 
@@ -43,7 +44,7 @@ int main() {
 
     size_t spirv_bytes_count;
     uint32_t* spirv_bytes;
-    if (!shd_read_file("checkerboard.spv", &spirv_bytes_count, (unsigned char**) &spirv_bytes))
+    if (!shd_read_file((std::filesystem::path(shd_get_executable_location()).parent_path().string() + "/checkerboard.spv").c_str(), &spirv_bytes_count, (unsigned char**) &spirv_bytes))
         abort();
 
     VkShaderModule module;
