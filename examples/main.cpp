@@ -9,10 +9,12 @@
 
 struct vec2 { float x, y; };
 
+struct Tri { vec2 v0, v1, v2; };
+
 struct push_constants {
-    vec2 tri[3] = {
+    Tri tri = {
         { -0.5, 0.5 },
-        { 0, -0.5 },
+        { 0.5, -0.5 },
         { 0.5, 0.5}
     };
     float time;
@@ -169,7 +171,7 @@ int main() {
         }));
 
         vk.cmdClearColorImage(cmdbuf, image->handle, VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
-            .float32 = { 1.0f, 0.0f, 0.0f, 1.0f},
+            .float32 = { 0.0f, 0.0f, 0.0f, 1.0f},
         }), 1, tmp((VkImageSubresourceRange) {
             .aspectMask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
             .levelCount = 1,
@@ -234,8 +236,51 @@ int main() {
 
         vk.cmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
         vk.cmdBindDescriptorSets(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 1, &set, 0, nullptr);
-        vk.cmdPushConstants(cmdbuf, layout, VK_SHADER_STAGE_ALL, 0, sizeof(push_constants), &push_constants);
-        vk.cmdDispatch(cmdbuf, (image->size.width + 31) / 32, (image->size.height + 31) / 32, 1);
+
+        std::vector<Tri> tris;
+
+        tris.push_back({
+            { -0.5, 0.5 },
+            { 0.0, -0.5 },
+            { 0.5, 0.5}
+        });
+        tris.push_back({
+            { -0.5+0.25, 0.5 },
+            { 0.0+0.25, -0.5 },
+            { 0.5+0.25, 0.5}
+        });
+
+        bool first = true;
+        for (auto tri : tris) {
+            if (first) first = false;
+            else {
+                vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+                    .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                    .dependencyFlags = 0,
+                    .imageMemoryBarrierCount = 1,
+                    .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                        .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        .srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
+                        .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
+                        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+                        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                        .image = image->handle,
+                        .subresourceRange = {
+                            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                            .levelCount = 1,
+                            .layerCount = 1,
+                        }
+                    }),
+                }));
+            }
+
+            push_constants.tri = tri;
+            vk.cmdPushConstants(cmdbuf, layout, VK_SHADER_STAGE_ALL, 0, sizeof(push_constants), &push_constants);
+            vk.cmdDispatch(cmdbuf, (image->size.width + 31) / 32, (image->size.height + 31) / 32, 1);
+        }
+
         vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
             .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
             .dependencyFlags = 0,
