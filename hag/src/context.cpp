@@ -33,8 +33,6 @@ Context::Context() {
         .set_required_features_12((VkPhysicalDeviceVulkan12Features) {
             .scalarBlockLayout = true
         })
-        .set_required_features_13((VkPhysicalDeviceVulkan13Features) {
-        })
         // .set_surface(surface)
         .defer_surface_initialization()
         .add_required_extension_features((VkPhysicalDeviceSynchronization2FeaturesKHR) {
