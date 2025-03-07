@@ -29,17 +29,11 @@ int main() {
     auto window = glfwCreateWindow(1024, 1024, "HAG", nullptr, nullptr);
     hag::Swapchain swapchain(context, window);
 
-    VkFence last_fence;
+    VkFence fence;
     vkCreateFence(context.device, tmp((VkFenceCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-    }), nullptr, &last_fence);
-
-    VkFence next_fence;
-    vkCreateFence(context.device, tmp((VkFenceCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .flags = 0,
-    }), nullptr, &next_fence);
+    }), nullptr, &fence);
 
     uint64_t last_epoch = shd_get_time_nano();
     int frames_since_last_epoch = 0;
@@ -107,6 +101,24 @@ int main() {
         }),
     }), nullptr, &pool);
 
+    int width, height;
+    glfwGetWindowSize(window, &width, &height);
+    VkExtent3D extents = { static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
+    auto image = new hag::Image (context, VK_IMAGE_TYPE_2D, extents, VK_FORMAT_R8G8B8A8_UNORM, (VkImageUsageFlagBits) (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT));
+
+    VkImageView view;
+    vkCreateImageView(context.device, tmp((VkImageViewCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = image->handle,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = image->format,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .levelCount = 1,
+            .layerCount = 1,
+        },
+    }), nullptr, &view);
+
     while (!glfwWindowShouldClose(window)) {
         uint64_t now = shd_get_time_nano();
         uint64_t delta = now - last_epoch;
@@ -125,12 +137,7 @@ int main() {
             frames_since_last_epoch = 0;
         }
 
-        vkWaitForFences(context.device, 1, &last_fence, VK_TRUE, UINT64_MAX);
-
-        int width, height;
-        glfwGetWindowSize(window, &width, &height);
-        VkExtent3D extents = { static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
-        auto image = new hag::Image (context, VK_IMAGE_TYPE_2D, extents, VK_FORMAT_R8G8B8A8_UNORM, (VkImageUsageFlagBits) (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT));
+        vkWaitForFences(context.device, 1, &fence, VK_TRUE, UINT64_MAX);
 
         VkCommandBuffer cmdbuf;
         vkAllocateCommandBuffers(context.device, tmp((VkCommandBufferAllocateInfo) {
@@ -206,19 +213,6 @@ int main() {
             .descriptorSetCount = 1,
             .pSetLayouts = &set0_layout,
         }), &set);
-
-        VkImageView view;
-        vkCreateImageView(context.device, tmp((VkImageViewCreateInfo) {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .image = image->handle,
-            .viewType = VK_IMAGE_VIEW_TYPE_2D,
-            .format = image->format,
-            .subresourceRange = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .levelCount = 1,
-                .layerCount = 1,
-            },
-        }), nullptr, &view);
 
         vkUpdateDescriptorSets(context.device, 1, tmp((VkWriteDescriptorSet) {
             .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -312,27 +306,22 @@ int main() {
             .pSignalSemaphores = &sem,
         }), VK_NULL_HANDLE);
 
-        // vkTransitionImageLayoutEXT(context.device, 1, tmp((VkHostImageLayoutTransitionInfoEXT) {
-        //
-        // }))
-
         swapchain.add_to_delete_queue([=, &context]() {
-            delete image;
             vkDestroySemaphore(context.device, sem, nullptr);
             vkFreeDescriptorSets(context.device, pool, 1, &set);
-            vkDestroyImageView(context.device, view, nullptr);
+            vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
         });
-        swapchain.present(image->handle, next_fence, { sem }, VK_IMAGE_LAYOUT_GENERAL, std::make_optional<VkExtent2D>(image->size.width, image->size.height));
+        swapchain.present(image->handle, fence, { sem }, VK_IMAGE_LAYOUT_GENERAL, std::make_optional<VkExtent2D>(image->size.width, image->size.height));
 
         frames_since_last_epoch++;
-        std::swap(last_fence, next_fence);
         glfwPollEvents();
     }
 
     vkDeviceWaitIdle(context.device);
 
-    vkDestroyFence(context.device, next_fence, nullptr);
-    vkDestroyFence(context.device, last_fence, nullptr);
+    delete image;
+    vkDestroyImageView(context.device, view, nullptr);
+    vkDestroyFence(context.device, fence, nullptr);
 
     return 0;
 }
