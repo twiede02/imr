@@ -174,6 +174,10 @@ void Swapchain::present(VkImage image, VkFence signal_when_reusable, std::option
         .pSignalSemaphores = &per_image.ready2present,
     }), signal_when_reusable);
 
+    add_to_delete_queue([=, &context]() {
+        vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
+    });
+
     vk.queuePresentKHR(context.main_queue, tmp((VkPresentInfoKHR) {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = 1,
