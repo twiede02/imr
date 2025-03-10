@@ -1,11 +1,11 @@
-#include "hag_private.h"
+#include "imr_private.h"
 
 #include "VkBootstrap.h"
 
 #include <functional>
 #include <vector>
 
-namespace hag {
+namespace imr {
 
 struct PerImage {
     VkSemaphore image_acquired;

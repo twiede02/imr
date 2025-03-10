@@ -1,5 +1,5 @@
-#include "hag/hag.h"
-#include "hag/util.h"
+#include "imr/imr.h"
+#include "imr/util.h"
 
 #include "VkBootstrap.h"
 
@@ -21,13 +21,13 @@ struct push_constants {
 } push_constants;
 
 int main() {
-    hag::Context context;
+    imr::Context context;
     auto& vk = context.dispatch_tables.device;
 
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    auto window = glfwCreateWindow(1024, 1024, "HAG", nullptr, nullptr);
-    hag::Swapchain swapchain(context, window);
+    auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
+    imr::Swapchain swapchain(context, window);
 
     VkFence fence;
     vkCreateFence(context.device, tmp((VkFenceCreateInfo) {
@@ -104,7 +104,7 @@ int main() {
     int width, height;
     glfwGetWindowSize(window, &width, &height);
     VkExtent3D extents = { static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
-    auto image = new hag::Image (context, VK_IMAGE_TYPE_2D, extents, VK_FORMAT_R8G8B8A8_UNORM, (VkImageUsageFlagBits) (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT));
+    auto image = new imr::Image (context, VK_IMAGE_TYPE_2D, extents, VK_FORMAT_R8G8B8A8_UNORM, (VkImageUsageFlagBits) (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT));
 
     VkImageView view;
     vkCreateImageView(context.device, tmp((VkImageViewCreateInfo) {

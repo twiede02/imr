@@ -15,7 +15,7 @@
 
 inline auto tmp(auto&& t) { return &t; }
 
-namespace hag {
+namespace imr {
 
     struct Buffer {
         VkBuffer handle;

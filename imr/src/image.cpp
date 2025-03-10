@@ -1,6 +1,6 @@
-#include "hag_private.h"
+#include "imr_private.h"
 
-namespace hag {
+namespace imr {
 
 struct Image::Impl {
     Context& context;

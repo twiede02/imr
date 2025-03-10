@@ -1,8 +1,8 @@
-#include "hag/hag.h"
+#include "imr/imr.h"
 
 #include "vk_mem_alloc.h"
 
-namespace hag {
+namespace imr {
 
 struct Context::Impl {
     vkb::Instance vkb_instance;

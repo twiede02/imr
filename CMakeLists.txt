@@ -9,5 +9,5 @@ set(CMAKE_CXX_STANDARD 20)
 add_subdirectory(vk-bootstrap)
 add_subdirectory(VulkanMemoryAllocator)
 
-add_subdirectory(hag)
+add_subdirectory(imr)
 add_subdirectory(examples)
