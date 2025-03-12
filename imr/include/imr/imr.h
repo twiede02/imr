@@ -16,15 +16,6 @@
 inline auto tmp(auto&& t) { return &t; }
 
 namespace imr {
-
-    struct Buffer {
-        VkBuffer handle;
-        VkDeviceAddress device_address;
-
-        struct Impl;
-        std::unique_ptr<Impl> _impl;
-    };
-
     struct Context {
         Context();
         Context(Context&) = delete;
@@ -45,6 +36,23 @@ namespace imr {
         } dispatch_tables;
 
         class Impl;
+        std::unique_ptr<Impl> _impl;
+    };
+
+    struct Buffer {
+        Buffer(Context&, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_property = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        Buffer(Buffer&) = delete;
+        ~Buffer();
+
+        size_t const size;
+        VkBuffer handle;
+        /// 64-bit virtual address of the buffer on the GPU
+        VkDeviceAddress device_address;
+        /// Managed by the allocator, required for mapping the buffer
+        VkDeviceMemory memory;
+        size_t memory_offset;
+
+        struct Impl;
         std::unique_ptr<Impl> _impl;
     };
 

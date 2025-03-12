@@ -31,7 +31,8 @@ Context::Context() {
         .set_required_features_11((VkPhysicalDeviceVulkan11Features) {
         })
         .set_required_features_12((VkPhysicalDeviceVulkan12Features) {
-            .scalarBlockLayout = true
+            .scalarBlockLayout = true,
+            .bufferDeviceAddress = true,
         })
         // .set_surface(surface)
         .defer_surface_initialization()
@@ -62,7 +63,7 @@ Context::Context() {
     }), nullptr, &pool), throw std::exception());
 
     CHECK_VK(vmaCreateAllocator(tmp((VmaAllocatorCreateInfo) {
-        .flags = 0,
+        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
         .physicalDevice = physical_device,
         .device = device,
         .instance = instance,
