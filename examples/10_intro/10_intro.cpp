@@ -27,6 +27,7 @@ int main() {
 
     while (!glfwWindowShouldClose(window)) {
         vkWaitForFences(context.device, 1, &fence, VK_TRUE, UINT64_MAX);
+        CHECK_VK(vkResetFences(context.device, 1, &fence), abort());
 
         for (size_t i = 0 ; i < width; i++) {
             for (size_t j = 0; j < height; j++) {

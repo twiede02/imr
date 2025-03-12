@@ -8,8 +8,8 @@ Context::Context() {
     if (auto built = vkb::InstanceBuilder()
         .use_default_debug_messenger()
         .request_validation_layers()
-        .set_minimum_instance_version(1, 2, 0)
-        .require_api_version(1, 2, 0)
+        .set_minimum_instance_version(1, 3, 0)
+        .require_api_version(1, 3, 0)
         .build(); built.has_value())
     {
         _impl->vkb_instance = built.value();

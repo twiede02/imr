@@ -1,0 +1,2 @@
+add_executable(11_present_image 11_present_image.cpp)
+target_link_libraries(11_present_image imr)

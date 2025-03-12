@@ -124,6 +124,7 @@ int main() {
         fps_counter.updateGlfwWindowTitle(window);
 
         vkWaitForFences(context.device, 1, &fence, VK_TRUE, UINT64_MAX);
+        vkResetFences(context.device, 1, &fence);
 
         VkCommandBuffer cmdbuf;
         vkAllocateCommandBuffers(context.device, tmp((VkCommandBufferAllocateInfo) {
