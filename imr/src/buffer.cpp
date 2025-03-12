@@ -18,7 +18,7 @@ Buffer::Buffer(imr::Context& context, size_t size, VkBufferUsageFlags usage, VkM
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
     };
     VmaAllocationCreateInfo vma_aci = {
-        .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+        .flags = 0,
         .usage = VMA_MEMORY_USAGE_UNKNOWN,
         .requiredFlags = memory_property
     };
