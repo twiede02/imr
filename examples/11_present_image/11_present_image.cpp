@@ -27,7 +27,7 @@ int main() {
 
         auto [image, isem] = swapchain.nextSwapchainImage();
 
-        /*VkCommandBuffer cmdbuf;
+        VkCommandBuffer cmdbuf;
         vkAllocateCommandBuffers(context.device, tmp((VkCommandBufferAllocateInfo) {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
             .commandPool = context.pool,
@@ -66,7 +66,7 @@ int main() {
         }));
 
         vkCmdClearColorImage(cmdbuf, image, VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
-            .float32 = { 0.0f, 0.0f, 0.0f, 1.0f},
+            .float32 = { 1.0f, 0.0f, 0.0f, 1.0f},
         }), 1, tmp((VkImageSubresourceRange) {
             .aspectMask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
             .levelCount = 1,
@@ -109,8 +109,8 @@ int main() {
         swapchain.add_to_delete_queue([=, &context]() {
             vkDestroySemaphore(context.device, sem, nullptr);
             vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
-        });*/
-        swapchain.presentFromImage(image, VK_NULL_HANDLE, { isem }, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        });
+        swapchain.presentFromImage(image, VK_NULL_HANDLE, { sem }, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
         fps_counter.tick();
         fps_counter.updateGlfwWindowTitle(window);

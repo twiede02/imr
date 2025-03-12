@@ -67,10 +67,6 @@ Swapchain::Swapchain(Context& context, GLFWwindow* window) {
 
     _impl->slots.resize(_impl->swapchain.image_count);
     for (int i = 0; i < _impl->slots.size(); i++) {
-        /*CHECK_VK_THROW(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        }), nullptr, &_impl->slots[i].image_acquired));*/
-
         CHECK_VK_THROW(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         }), nullptr, &_impl->slots[i].copy_done));
@@ -100,8 +96,9 @@ static SwapchainSlot& nextSwapchainSlot(Swapchain::Impl* _impl) {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         }), nullptr, &acquired));
         //CHECK_VK_THROW(context.dispatch_tables.device.acquireNextImageKHR(_impl->swapchain, UINT64_MAX, acquired, VK_NULL_HANDLE, &image_index));
-        CHECK_VK_THROW(vkAcquireNextImageKHR(context.device, _impl->swapchain, 0, acquired, VK_NULL_HANDLE, &image_index));
-        //vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);
+        CHECK_VK_THROW(vkAcquireNextImageKHR(context.device, _impl->swapchain, UINT64_MAX, acquired, fence, &image_index));
+        vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);
+        vkDestroyFence(context.device, fence, nullptr);
 
         /*vkWaitSemaphores(context.device, 1, tmp((VkSemaphoreWaitInfo) {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
@@ -109,7 +106,7 @@ static SwapchainSlot& nextSwapchainSlot(Swapchain::Impl* _impl) {
             .pSemaphores = &slot.ready,
         }))*/
 
-        printf("Acquired %d %llx\n", image_index, acquired);
+        //printf("Acquired %d %llx\n", image_index, acquired);
         auto& slot = _impl->slots[image_index];
         slot.image_acquired = acquired;
 
@@ -387,7 +384,6 @@ Swapchain::~Swapchain() {
     VkSurfaceKHR surface = _impl->surface;
 
     for (auto& per_image : _impl->slots) {
-        vkDestroySemaphore(context.device, per_image.image_acquired, nullptr);
         vkDestroySemaphore(context.device, per_image.copy_done, nullptr);
 
         for (auto& fn : per_image.cleanup_queue) {
