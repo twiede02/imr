@@ -2,10 +2,11 @@
 
 int main() {
     glfwInit();
+    glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
     int width, height;
-    glfwGetWindowSize(window, &width, &height);
+    glfwGetFramebufferSize(window, &width, &height);
 
     imr::Context context;
     imr::Swapchain swapchain(context, window);
@@ -14,7 +15,7 @@ int main() {
     // CPU-side staging buffer
     uint8_t* framebuffer = reinterpret_cast<uint8_t*>(malloc(width * height * 4));
 
-    imr::Buffer buffer = imr::Buffer(context, width * height * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    imr::Buffer buffer(context, width * height * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     uint8_t* mapped_buffer;
     CHECK_VK(vkMapMemory(context.device, buffer.memory, buffer.memory_offset, buffer.size, 0, (void**) &mapped_buffer), abort());
 

@@ -1,2 +1,0 @@
-add_executable(10_framebuffer 10_framebuffer.cpp)
-target_link_libraries(10_framebuffer imr)
