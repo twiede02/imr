@@ -24,26 +24,50 @@ struct Swapchain::Impl {
     int in_flight_counter;
 };
 
+#define CHECK_VK_THROW(do) CHECK_VK(do, throw std::exception())
+
 Swapchain::Swapchain(Context& context, GLFWwindow* window) {
     _impl = std::make_unique<Swapchain::Impl>(context);
-    CHECK_VK(glfwCreateWindowSurface(context.instance, window, nullptr, &_impl->surface), throw std::exception());
+    CHECK_VK_THROW(glfwCreateWindowSurface(context.instance, window, nullptr, &_impl->surface));
+
+    uint32_t surface_formats_count;
+    CHECK_VK_THROW(vkGetPhysicalDeviceSurfaceFormatsKHR(context.physical_device, _impl->surface, &surface_formats_count, nullptr));
+
+    std::vector<VkSurfaceFormatKHR> formats;
+    formats.resize(surface_formats_count);
+    CHECK_VK_THROW(vkGetPhysicalDeviceSurfaceFormatsKHR(context.physical_device, _impl->surface, &surface_formats_count, formats.data()));
+
+    std::optional<VkSurfaceFormatKHR> preferred;
+    for (auto format : formats) {
+        if (format.format == VK_FORMAT_R8G8B8A8_SRGB)
+            preferred = format;
+        if (format.format == VK_FORMAT_B8G8R8A8_SRGB)
+            preferred = format;
+    }
+
+    if (!preferred) {
+        fprintf(stderr, "Swapchain format is not 8-bit RGBA or BGRA");
+    }
 
     if (auto built = vkb::SwapchainBuilder(context.physical_device, context.device, _impl->surface)
         .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+        .set_desired_format(*preferred)
         .build(); built.has_value())
     {
         _impl->swapchain = built.value();
     } else { throw std::exception(); }
 
+    format = _impl->swapchain.image_format;
+
     _impl->in_flight.resize(_impl->swapchain.image_count);
     for (int i = 0; i < _impl->swapchain.image_count; i++) {
-        vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
+        CHECK_VK_THROW(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        }), nullptr, &_impl->in_flight[i].image_acquired);
+        }), nullptr, &_impl->in_flight[i].image_acquired));
 
-        vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
+        CHECK_VK_THROW(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        }), nullptr, &_impl->in_flight[i].ready2present);
+        }), nullptr, &_impl->in_flight[i].ready2present));
     }
 }
 
