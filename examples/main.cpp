@@ -311,7 +311,7 @@ int main() {
             vkFreeDescriptorSets(context.device, pool, 1, &set);
             vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
         });
-        swapchain.present(image->handle, fence, { sem }, VK_IMAGE_LAYOUT_GENERAL, std::make_optional<VkExtent2D>(image->size.width, image->size.height));
+        swapchain.presentFromImage(image->handle, fence, { sem }, VK_IMAGE_LAYOUT_GENERAL, std::make_optional<VkExtent2D>(image->size.width, image->size.height));
 
         frames_since_last_epoch++;
         glfwPollEvents();

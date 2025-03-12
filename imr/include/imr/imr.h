@@ -74,7 +74,8 @@ namespace imr {
         ~Swapchain();
 
         void add_to_delete_queue(std::function<void(void)>&& fn);
-        void present(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> wait_for, VkImageLayout layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
+        void presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem);
+        void presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
 
         class Impl;
         std::unique_ptr<Impl> _impl;

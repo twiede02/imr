@@ -52,7 +52,124 @@ void Swapchain::add_to_delete_queue(std::function<void()>&& fn) {
     per_image.cleanup_queue.push_back(std::move(fn));
 }
 
-void Swapchain::present(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
+void Swapchain::presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem) {
+    _impl->in_flight_counter = (_impl->in_flight_counter + 1) % _impl->swapchain.image_count;
+
+    auto& per_image = _impl->in_flight[_impl->in_flight_counter];
+    auto& context = _impl->context;
+    auto& vk = context.dispatch_tables.device;
+
+    CHECK_VK_THROW(vkResetFences(context.device, 1, &signal_when_reusable));
+
+    for (auto& fn : per_image.cleanup_queue) {
+        fn();
+    }
+    per_image.cleanup_queue.clear();
+
+    uint32_t image_index;
+    _impl->context.dispatch_tables.device.acquireNextImageKHR(_impl->swapchain, UINT64_MAX, per_image.image_acquired, VK_NULL_HANDLE, &image_index);
+
+    VkCommandBuffer cmdbuf;
+    CHECK_VK_THROW(vkAllocateCommandBuffers(context.device, tmp((VkCommandBufferAllocateInfo) {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = context.pool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    }), &cmdbuf));
+
+    CHECK_VK_THROW(vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    })));
+
+    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .dependencyFlags = 0,
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
+            .srcAccessMask = VK_ACCESS_2_NONE,
+            .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+            .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .image = _impl->swapchain.get_images().value()[image_index],
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .levelCount = 1,
+                .layerCount = 1,
+            }
+        }),
+    }));
+    VkExtent2D src_size = _impl->swapchain.extent;
+    vk.cmdCopyBufferToImage(cmdbuf, buffer,  _impl->swapchain.get_images().value()[image_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, tmp((VkBufferImageCopy) {
+        .imageSubresource = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .layerCount = 1,
+        },
+        .imageExtent = {
+            .width = _impl->swapchain.extent.width,
+            .height =  _impl->swapchain.extent.height,
+            .depth = 1
+        }
+    }));
+    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .dependencyFlags = 0,
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+            .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+            .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            .image = _impl->swapchain.get_images().value()[image_index],
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .levelCount = 1,
+                .layerCount = 1,
+            }
+        }),
+    }));
+
+    uint32_t semaphores_count = 1;
+    VkSemaphore semaphores[2] = { per_image.image_acquired };
+    VkPipelineStageFlags stage_flags[2] = { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT };
+    if (sem) {
+        stage_flags[semaphores_count] = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        semaphores[semaphores_count++] = *sem;
+    }
+
+    vkEndCommandBuffer(cmdbuf);
+    vk.queueSubmit(context.main_queue, 1, tmp((VkSubmitInfo) {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = semaphores_count,
+        .pWaitSemaphores = semaphores,
+        .pWaitDstStageMask = stage_flags,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &cmdbuf,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = &per_image.ready2present,
+    }), signal_when_reusable);
+
+    add_to_delete_queue([=, &context]() {
+        vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
+    });
+
+    vk.queuePresentKHR(context.main_queue, tmp((VkPresentInfoKHR) {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &per_image.ready2present,
+        .swapchainCount = 1,
+        .pSwapchains = &_impl->swapchain.swapchain,
+        .pImageIndices = tmp(image_index),
+    }));
+}
+
+void Swapchain::presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
     _impl->in_flight_counter = (_impl->in_flight_counter + 1) % _impl->swapchain.image_count;
 
     auto& per_image = _impl->in_flight[_impl->in_flight_counter];
