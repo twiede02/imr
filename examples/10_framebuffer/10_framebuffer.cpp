@@ -1,5 +1,4 @@
 #include "imr/imr.h"
-#include "imr/util.h"
 
 #include "VkBootstrap.h"
 
@@ -14,8 +13,7 @@ int main() {
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
     imr::Swapchain swapchain(context, window);
 
-    uint64_t last_epoch = shd_get_time_nano();
-    int frames_since_last_epoch = 0;
+    imr::FpsCounter fps_counter;
 
     int width, height;
     glfwGetWindowSize(window, &width, &height);
@@ -40,27 +38,12 @@ int main() {
     }), nullptr, &fence);
 
     while (!glfwWindowShouldClose(window)) {
-        uint64_t now = shd_get_time_nano();
-        uint64_t delta = now - last_epoch;
-        if (delta > 1000000000 /* 1 second */) {
-            last_epoch = now;
-            if (frames_since_last_epoch > 0) {
-                int fps = frames_since_last_epoch;
-                float avg_frametime = (delta / 1000000.0f /* scale to ms */) / frames_since_last_epoch;
-                std::string str = "Fps: ";
-                str.append(std::to_string(fps));
-                str.append(", Avg frametime: ");
-                str.append(std::to_string(avg_frametime));
-                str.append("ms");
-                glfwSetWindowTitle(window, str.c_str());
-            }
-            frames_since_last_epoch = 0;
-        }
+        fps_counter.tick();
+        fps_counter.updateGlfwWindowTitle(window);
 
         vkWaitForFences(context.device, 1, &fence, VK_TRUE, UINT64_MAX);
         swapchain.presentFromBuffer(buffer.handle, fence, std::nullopt);
 
-        frames_since_last_epoch++;
         glfwPollEvents();
     }
 

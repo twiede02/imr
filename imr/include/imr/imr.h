@@ -90,6 +90,20 @@ namespace imr {
         class Impl;
         std::unique_ptr<Impl> _impl;
     };
+
+    struct FpsCounter {
+        FpsCounter();
+        FpsCounter(FpsCounter&) = delete;
+        ~FpsCounter();
+
+        void tick();
+        int average_fps();
+        float average_frametime();
+        void updateGlfwWindowTitle(GLFWwindow*);
+
+        class Impl;
+        std::unique_ptr<Impl> _impl;
+    };
 }
 
 #endif

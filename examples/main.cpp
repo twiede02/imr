@@ -35,8 +35,7 @@ int main() {
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     }), nullptr, &fence);
 
-    uint64_t last_epoch = shd_get_time_nano();
-    int frames_since_last_epoch = 0;
+    imr::FpsCounter fps_counter;
 
     size_t spirv_bytes_count;
     uint32_t* spirv_bytes;
@@ -121,21 +120,8 @@ int main() {
 
     while (!glfwWindowShouldClose(window)) {
         uint64_t now = shd_get_time_nano();
-        uint64_t delta = now - last_epoch;
-        if (delta > 1000000000 /* 1 second */) {
-            last_epoch = now;
-            if (frames_since_last_epoch > 0) {
-                int fps = frames_since_last_epoch;
-                float avg_frametime = (delta / 1000000.0f /* scale to ms */) / frames_since_last_epoch;
-                std::string str = "Fps: ";
-                str.append(std::to_string(fps));
-                str.append(", Avg frametime: ");
-                str.append(std::to_string(avg_frametime));
-                str.append("ms");
-                glfwSetWindowTitle(window, str.c_str());
-            }
-            frames_since_last_epoch = 0;
-        }
+        fps_counter.tick();
+        fps_counter.updateGlfwWindowTitle(window);
 
         vkWaitForFences(context.device, 1, &fence, VK_TRUE, UINT64_MAX);
 
@@ -313,7 +299,6 @@ int main() {
         });
         swapchain.presentFromImage(image->handle, fence, { sem }, VK_IMAGE_LAYOUT_GENERAL, std::make_optional<VkExtent2D>(image->size.width, image->size.height));
 
-        frames_since_last_epoch++;
         glfwPollEvents();
     }
 
