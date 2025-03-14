@@ -110,8 +110,20 @@ int main() {
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         }), nullptr, &fence);
 
-        uint32_t image_index;
-        vkAcquireNextImageKHR(context.device, swapchain, 0, acquired, fence, &image_index);
+        uint32_t image_index = 69;
+        while (true) {
+            switch (vkAcquireNextImageKHR(context.device, swapchain, 0, acquired, fence, &image_index)) {
+                case VK_SUCCESS:
+                case VK_SUBOPTIMAL_KHR: break;
+                case VK_NOT_READY:
+                    printf("not ready index=%d\n", image_index);
+                continue;
+                //exit(1);
+                case VK_ERROR_OUT_OF_DATE_KHR: exit(2);
+                default: exit(3);
+            }
+            break;
+        }
         // make sure we 100% are done
         uint64_t then = shd_get_time_nano();
         vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);
