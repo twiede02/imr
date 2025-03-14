@@ -1,4 +1,5 @@
 #include "imr/imr.h"
+#include "imr/util.h"
 
 auto drawDingus(imr::Context& context, VkImage image, VkSemaphore isem) {
     VkCommandBuffer cmdbuf;
@@ -112,7 +113,10 @@ int main() {
         uint32_t image_index;
         vkAcquireNextImageKHR(context.device, swapchain, 0, acquired, fence, &image_index);
         // make sure we 100% are done
+        uint64_t then = shd_get_time_nano();
         vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);
+        uint64_t now = shd_get_time_nano();
+        printf("Waited on fence for %dns\n", now - then);
         vkDestroyFence(context.device, fence, nullptr);
 
         if (prev[image_index])
