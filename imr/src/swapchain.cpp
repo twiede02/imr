@@ -55,10 +55,14 @@ Swapchain::Swapchain(Context& context, GLFWwindow* window) {
         fprintf(stderr, "Swapchain format is not 8-bit RGBA or BGRA");
     }
 
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
+
     if (auto built = vkb::SwapchainBuilder(context.physical_device, context.device, _impl->surface)
         .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT)
         .set_desired_format(*preferred)
         //.set_required_min_image_count(2)
+        .set_desired_extent(width, height)
         .set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
         .build(); built.has_value())
     {
@@ -96,7 +100,14 @@ static SwapchainSlot& nextSwapchainSlot(Swapchain::Impl* _impl) {
         CHECK_VK_THROW(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         }), nullptr, &acquired));
-        CHECK_VK_THROW(context.dispatch_tables.device.acquireNextImageKHR(_impl->swapchain, UINT64_MAX, acquired, VK_NULL_HANDLE, &image_index));
+        VkResult acquire_result = context.dispatch_tables.device.acquireNextImageKHR(_impl->swapchain, UINT64_MAX, acquired, VK_NULL_HANDLE, &image_index);
+        switch (acquire_result) {
+            case VK_SUCCESS:
+            case VK_SUBOPTIMAL_KHR: break;
+            default:
+                printf("Acquire result was: %d\n", acquire_result);
+                throw std::exception();
+        }
         //CHECK_VK_THROW(vkAcquireNextImageKHR(context.device, _impl->swapchain, UINT64_MAX, acquired, fence, &image_index));
         auto& slot = _impl->slots[image_index];
         CHECK_VK_THROW(vkWaitForFences(context.device, 1, &slot.wait_for_previous_present, true, UINT64_MAX));
@@ -396,11 +407,10 @@ Swapchain::~Swapchain() {
     VkSurfaceKHR surface = _impl->surface;
 
     for (auto& per_image : _impl->slots) {
-        vkDestroySemaphore(context.device, per_image.copy_done, nullptr);
-
         for (auto& fn : per_image.cleanup_queue) {
             fn();
         }
+        vkDestroySemaphore(context.device, per_image.copy_done, nullptr);
         per_image.cleanup_queue.clear();
     }
     vkb::destroy_swapchain(_impl->swapchain);
