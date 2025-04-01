@@ -14,6 +14,8 @@ struct SwapchainSlot {
     VkSemaphore image_acquired;
     VkSemaphore copy_done;
 
+    VkFence wait_for_previous_present = VK_NULL_HANDLE;
+
     std::vector<std::function<void(void)>> cleanup_queue;
 };
 
@@ -67,38 +69,43 @@ Swapchain::Swapchain(Context& context, GLFWwindow* window) {
 
     _impl->slots.resize(_impl->swapchain.image_count);
     for (int i = 0; i < _impl->slots.size(); i++) {
+        SwapchainSlot& slot = _impl->slots[i];
         CHECK_VK_THROW(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        }), nullptr, &_impl->slots[i].copy_done));
+        }), nullptr, &slot.copy_done));
+
+        vkCreateFence(context.device, tmp((VkFenceCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+        }), nullptr, &slot.wait_for_previous_present);
+
     }
 }
 
 void Swapchain::add_to_delete_queue(std::function<void()>&& fn) {
-    _impl->current_slot->cleanup_queue.push_back(std::move(fn));
+    _impl->current_slot->cleanup_queue.insert(_impl->current_slot->cleanup_queue.begin(), std::move(fn));
 }
 
 /// Acquires the next image
 static SwapchainSlot& nextSwapchainSlot(Swapchain::Impl* _impl) {
     auto& context = _impl->context;
+
     if (_impl->current_slot)
         return *_impl->current_slot;
     else {
         uint32_t image_index;
         //auto& slot = _impl->slots[(_impl->slot_counter++) % _impl->slots.size()];
 
-        VkFence fence;
-        vkCreateFence(context.device, tmp((VkFenceCreateInfo) {
-            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-            .flags = 0,
-        }), nullptr, &fence);
         VkSemaphore acquired;
         CHECK_VK_THROW(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         }), nullptr, &acquired));
-        //CHECK_VK_THROW(context.dispatch_tables.device.acquireNextImageKHR(_impl->swapchain, UINT64_MAX, acquired, VK_NULL_HANDLE, &image_index));
-        CHECK_VK_THROW(vkAcquireNextImageKHR(context.device, _impl->swapchain, UINT64_MAX, acquired, fence, &image_index));
-        vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);
-        vkDestroyFence(context.device, fence, nullptr);
+        CHECK_VK_THROW(context.dispatch_tables.device.acquireNextImageKHR(_impl->swapchain, UINT64_MAX, acquired, VK_NULL_HANDLE, &image_index));
+        //CHECK_VK_THROW(vkAcquireNextImageKHR(context.device, _impl->swapchain, UINT64_MAX, acquired, fence, &image_index));
+        auto& slot = _impl->slots[image_index];
+        CHECK_VK_THROW(vkWaitForFences(context.device, 1, &slot.wait_for_previous_present, true, UINT64_MAX));
+        CHECK_VK_THROW(vkResetFences(context.device, 1, &slot.wait_for_previous_present));
+        // vkDestroyFence(context.device, fence, nullptr);
 
         /*vkWaitSemaphores(context.device, 1, tmp((VkSemaphoreWaitInfo) {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
@@ -106,8 +113,7 @@ static SwapchainSlot& nextSwapchainSlot(Swapchain::Impl* _impl) {
             .pSemaphores = &slot.ready,
         }))*/
 
-        //printf("Acquired %d %llx\n", image_index, acquired);
-        auto& slot = _impl->slots[image_index];
+        printf("Acquired %d\n", image_index);
         slot.image_acquired = acquired;
 
         for (auto& fn : slot.cleanup_queue) {
@@ -239,6 +245,7 @@ void Swapchain::presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable,
 
 void Swapchain::presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
     auto& slot = nextSwapchainSlot(&*_impl);
+    printf("Presenting in slot: %d\n", slot.image_index);
     auto& context = _impl->context;
 
     std::vector<VkSemaphore> semaphores;
@@ -367,8 +374,15 @@ void Swapchain::presentFromImage(VkImage image, VkFence signal_when_reusable, st
         vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
     });
 
+    VkSwapchainPresentFenceInfoEXT swapchain_present_fence_info_ext = {
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_EXT,
+        .swapchainCount = 1,
+        .pFences = &slot.wait_for_previous_present
+    };
+
     vkQueuePresentKHR(context.main_queue, tmp((VkPresentInfoKHR) {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .pNext = &swapchain_present_fence_info_ext,
         .waitSemaphoreCount = static_cast<uint32_t>(semaphores.size()),
         .pWaitSemaphores = semaphores.data(),
         .swapchainCount = 1,

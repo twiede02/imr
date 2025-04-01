@@ -24,6 +24,7 @@ Context::Context() {
         .add_required_extension("VK_KHR_depth_stencil_resolve")
         .add_required_extension("VK_KHR_dynamic_rendering")
         .add_required_extension("VK_KHR_synchronization2")
+        .add_required_extension("VK_EXT_swapchain_maintenance1")
         .set_minimum_version(1, 2)
         .set_required_features((VkPhysicalDeviceFeatures) {
             .shaderUniformBufferArrayDynamicIndexing = true,

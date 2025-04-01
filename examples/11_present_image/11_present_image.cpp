@@ -13,12 +13,6 @@ int main() {
     imr::Swapchain swapchain(context, window);
     imr::FpsCounter fps_counter;
 
-    VkFence fence;
-    vkCreateFence(context.device, tmp((VkFenceCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-    }), nullptr, &fence);
-
     // auto image = new imr::Image(context, VK_IMAGE_TYPE_2D, { static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1}, VK_FORMAT_R8G8B8A8_UNORM, (VkImageUsageFlagBits) (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT));
 
     while (!glfwWindowShouldClose(window)) {
@@ -94,6 +88,12 @@ int main() {
             }),
         }));
 
+        VkFence fence;
+        vkCreateFence(context.device, tmp((VkFenceCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            .flags = 0,
+        }), nullptr, &fence);
+
         vkEndCommandBuffer(cmdbuf);
         vkQueueSubmit(context.main_queue, 1, tmp((VkSubmitInfo) {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -104,9 +104,11 @@ int main() {
             .pCommandBuffers = &cmdbuf,
             .signalSemaphoreCount = 1,
             .pSignalSemaphores = &sem,
-        }), VK_NULL_HANDLE);
+        }), fence);
 
         swapchain.add_to_delete_queue([=, &context]() {
+            vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);
+            vkDestroyFence(context.device, fence, nullptr);
             vkDestroySemaphore(context.device, sem, nullptr);
             vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
         });
@@ -118,7 +120,6 @@ int main() {
     }
 
     vkDeviceWaitIdle(context.device);
-    vkDestroyFence(context.device, fence, nullptr);
 
     return 0;
 }
