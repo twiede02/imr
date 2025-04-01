@@ -411,6 +411,7 @@ Swapchain::~Swapchain() {
             fn();
         }
         vkDestroySemaphore(context.device, per_image.copy_done, nullptr);
+        vkDestroyFence(context.device, per_image.wait_for_previous_present, nullptr);
         per_image.cleanup_queue.clear();
     }
     vkb::destroy_swapchain(_impl->swapchain);
