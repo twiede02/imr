@@ -112,7 +112,7 @@ int main() {
             vkDestroySemaphore(context.device, sem, nullptr);
             vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
         });
-        swapchain.presentFromImage(image, VK_NULL_HANDLE, { sem }, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        swapchain.present(sem);
 
         fps_counter.tick();
         fps_counter.updateGlfwWindowTitle(window);
