@@ -152,6 +152,7 @@ std::tuple<VkImage, VkSemaphore> Swapchain::nextSwapchainImage() {
 void Swapchain::presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem) {
     auto& slot = nextSwapchainSlot(&*_impl);
     auto& context = _impl->context;
+    auto& vk = context.dispatch_tables.device;
 
     assert(signal_when_reusable != VK_NULL_HANDLE);
 
@@ -173,7 +174,7 @@ void Swapchain::presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     })));
 
-    vkCmdPipelineBarrier2(cmdbuf, tmp((VkDependencyInfo) {
+    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .dependencyFlags = 0,
         .imageMemoryBarrierCount = 1,
@@ -205,7 +206,7 @@ void Swapchain::presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable,
             .depth = 1
         }
     }));
-    vkCmdPipelineBarrier2(cmdbuf, tmp((VkDependencyInfo) {
+    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .dependencyFlags = 0,
         .imageMemoryBarrierCount = 1,
@@ -252,6 +253,7 @@ void Swapchain::presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable,
 void Swapchain::presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
     auto& slot = nextSwapchainSlot(&*_impl);
     auto& context = _impl->context;
+    auto& vk = context.dispatch_tables.device;
 
     std::vector<VkSemaphore> semaphores;
     semaphores.push_back(slot.image_acquired);
@@ -274,7 +276,7 @@ void Swapchain::presentFromImage(VkImage image, VkFence signal_when_reusable, st
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     }));
 
-    vkCmdPipelineBarrier2(cmdbuf, tmp((VkDependencyInfo) {
+    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .dependencyFlags = 0,
         .imageMemoryBarrierCount = 1,
@@ -325,7 +327,7 @@ void Swapchain::presentFromImage(VkImage image, VkFence signal_when_reusable, st
             },
         }
     }), VK_FILTER_LINEAR);
-    vkCmdPipelineBarrier2(cmdbuf, tmp((VkDependencyInfo) {
+    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .dependencyFlags = 0,
         .imageMemoryBarrierCount = 1,

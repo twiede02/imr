@@ -13,6 +13,8 @@ int main() {
     imr::Swapchain swapchain(context, window);
     imr::FpsCounter fps_counter;
 
+    auto& vk = context.dispatch_tables.device;
+
     // auto image = new imr::Image(context, VK_IMAGE_TYPE_2D, { static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1}, VK_FORMAT_R8G8B8A8_UNORM, (VkImageUsageFlagBits) (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT));
 
     while (!glfwWindowShouldClose(window)) {
@@ -38,7 +40,7 @@ int main() {
         vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         }), nullptr, &sem);
-        vkCmdPipelineBarrier2(cmdbuf, tmp((VkDependencyInfo) {
+        vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
             .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
             .dependencyFlags = 0,
             .imageMemoryBarrierCount = 1,
@@ -67,7 +69,7 @@ int main() {
             .layerCount = 1
         }));
 
-        vkCmdPipelineBarrier2(cmdbuf, tmp((VkDependencyInfo) {
+        vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
             .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
             .dependencyFlags = 0,
             .imageMemoryBarrierCount = 1,
