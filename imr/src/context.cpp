@@ -6,7 +6,12 @@ Context::Context() {
     _impl = std::make_unique<Impl>();
 
     if (auto built = vkb::InstanceBuilder()
-        .use_default_debug_messenger()
+        //.use_default_debug_messenger()
+        .set_debug_callback([](auto t, auto s, const VkDebugUtilsMessengerCallbackDataEXT* c, auto p)-> VkBool32 {
+            printf("%s\n", c->pMessage);
+            //abort();
+            return 0;
+        })
         .request_validation_layers()
         .set_minimum_instance_version(1, 3, 0)
         .enable_extension("VK_KHR_get_surface_capabilities2")

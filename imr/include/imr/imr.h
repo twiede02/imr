@@ -87,6 +87,7 @@ namespace imr {
             void presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem);
             void presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
 
+            size_t id;
             VkImage swapchain_image;
             VkSemaphore swapchain_image_available;
             void present(std::optional<VkSemaphore> sem);

@@ -16,8 +16,11 @@ struct Swapchain::Impl {
     GLFWwindow* window = nullptr;
     VkSurfaceKHR surface;
     vkb::Swapchain swapchain;
+    size_t count = 0;
 
     std::vector<std::unique_ptr<SwapchainSlot>> slots;
+
+    std::vector<VkSemaphore> sem_pool;
 
     //std::vector<std::unique_ptr<Frame>> prev_frames;
 };
@@ -183,22 +186,28 @@ Swapchain::Frame::Frame(Impl&& impl) {
 void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
     auto& context = _impl->context;
     auto [slot, acquired] = nextSwapchainSlot(&*_impl);
+    slot.frame.reset();
     slot.frame = std::make_unique<Frame>(std::move(Frame::Impl(context, slot)));
     slot.frame->swapchain_image_available = acquired;
+    slot.frame->id = _impl->count++;
     assert(acquired);
     slot.frame->_impl->cleanup_queue.emplace_back([=, &context]() {
         vkDestroySemaphore(context.device, acquired, nullptr);
     });
 
+    printf("Preparing frame: %d\n", slot.frame->id);
     fn(*slot.frame);
 }
 
 Swapchain::Frame::~Frame() {
-    printf("Recycling frame in slot %d\n", _impl->slot.image_index);
+    printf("Recycling frame %d in slot %d\n", id, _impl->slot.image_index);
     // Before we can cleanup the resources we need to wait on the relevant fences
     // for now let's just wait on ALL of them at once
     if (!_impl->cleanup_fences.empty()) {
-        CHECK_VK_THROW(vkWaitForFences(_impl->context.device, _impl->cleanup_fences.size(), _impl->cleanup_fences.data(), true, UINT64_MAX));
+        for (auto fence : _impl->cleanup_fences) {
+            printf("Waited on fence = %llx\n", fence);
+            CHECK_VK_THROW(vkWaitForFences(_impl->context.device, 1, &fence, true, UINT64_MAX));
+        }
         _impl->cleanup_fences.clear();
     }
 
