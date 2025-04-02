@@ -103,6 +103,9 @@ namespace imr {
 
         void beginFrame(std::function<void(Swapchain::Frame&)>&& fn);
 
+        /// Waits until all the in-flight frames are done and runs their cleanup jobs
+        void drain();
+
         class Impl;
         std::unique_ptr<Impl> _impl;
     private:

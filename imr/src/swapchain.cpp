@@ -20,6 +20,8 @@ struct SwapchainSlot {
 
     std::vector<VkFence> cleanup_fences;
     std::vector<std::function<void(void)>> cleanup_queue;
+
+    void retire();
 };
 
 struct Swapchain::Impl {
@@ -106,6 +108,24 @@ Swapchain::Swapchain(Context& context, GLFWwindow* window) {
     }
 }
 
+void SwapchainSlot::retire() {
+    auto& context = swapchain._impl->context;
+
+    // Before we can cleanup the resources we need to wait on the relevant fences
+    // for now let's just wait on ALL of them at once
+    if (!cleanup_fences.empty()) {
+        CHECK_VK_THROW(vkWaitForFences(context.device, cleanup_fences.size(), cleanup_fences.data(), true, UINT64_MAX));
+        cleanup_fences.clear();
+    }
+
+    // We want to iterate over the queue in a FIFO manner
+    std::reverse(cleanup_queue.begin(), cleanup_queue.end());
+    for (auto& fn : cleanup_queue) {
+        fn();
+    }
+    cleanup_queue.clear();
+}
+
 /// Acquires the next image
 static SwapchainSlot& nextSwapchainSlot(Swapchain::Impl* _impl) {
     auto& context = _impl->context;
@@ -154,19 +174,7 @@ static SwapchainSlot& nextSwapchainSlot(Swapchain::Impl* _impl) {
         CHECK_VK_THROW(vkWaitForFences(context.device, 1, &slot.wait_for_previous_present, true, UINT64_MAX));
         CHECK_VK_THROW(vkResetFences(context.device, 1, &slot.wait_for_previous_present));
 
-        // Before we can cleanup the resources we need to wait on the relevant fences
-        // for now let's just wait on ALL of them at once
-        if (!slot.cleanup_fences.empty()) {
-            CHECK_VK_THROW(vkWaitForFences(context.device, slot.cleanup_fences.size(), slot.cleanup_fences.data(), true, UINT64_MAX));
-            slot.cleanup_fences.clear();
-        }
-
-        // We want to iterate over the queue in a FIFO manner
-        std::reverse(slot.cleanup_queue.begin(), slot.cleanup_queue.end());
-        for (auto& fn : slot.cleanup_queue) {
-            fn();
-        }
-        slot.cleanup_queue.clear();
+        slot.retire();
 
         slot.cleanup_queue.emplace_back([=, &context]() {
             vkDestroySemaphore(context.device, image_acquired_semaphore, nullptr);
@@ -465,19 +473,27 @@ void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
     swapchain._impl->current_slot = nullptr;
 }
 
+void Swapchain::drain() {
+    auto& context = _impl->context;
+    vkDeviceWaitIdle(context.device);
+
+    for (auto& slot : _impl->slots) {
+        slot.retire();
+    }
+}
+
 Swapchain::~Swapchain() {
+    drain();
+
     auto& context = _impl->context;
     vkDeviceWaitIdle(context.device);
     VkSurfaceKHR surface = _impl->surface;
 
-    for (auto& per_image : _impl->slots) {
-        for (auto& fn : per_image.cleanup_queue) {
-            fn();
-        }
-        vkDestroySemaphore(context.device, per_image.copy_done, nullptr);
-        vkDestroyFence(context.device, per_image.wait_for_previous_present, nullptr);
-        per_image.cleanup_queue.clear();
+    for (auto& slot : _impl->slots) {
+        vkDestroySemaphore(context.device, slot.copy_done, nullptr);
+        vkDestroyFence(context.device, slot.wait_for_previous_present, nullptr);
     }
+
     vkb::destroy_swapchain(_impl->swapchain);
     _impl.reset();
     vkDestroySurfaceKHR(context.instance, surface, nullptr);

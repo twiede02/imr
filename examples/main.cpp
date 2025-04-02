@@ -305,7 +305,13 @@ int main() {
         glfwPollEvents();
     }
 
-    vkDeviceWaitIdle(context.device);
+    swapchain.drain();
+
+    vkDestroyPipeline(context.device, pipeline, nullptr);
+    vkDestroyShaderModule(context.device, module, nullptr);
+    vkDestroyDescriptorPool(context.device, pool, nullptr);
+    vkDestroyPipelineLayout(context.device, layout, nullptr);
+    vkDestroyDescriptorSetLayout(context.device, set0_layout, nullptr);
 
     delete image;
     vkDestroyImageView(context.device, view, nullptr);
