@@ -83,7 +83,7 @@ namespace imr {
 
         VkFormat format;
 
-        void add_to_delete_queue(std::function<void(void)>&& fn);
+        void add_to_delete_queue(std::optional<VkFence> fence, std::function<void(void)>&& fn);
         std::tuple<VkImage, VkSemaphore> nextSwapchainImage();
         void presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem);
         void presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);

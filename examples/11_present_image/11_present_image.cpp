@@ -40,6 +40,14 @@ int main() {
         vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         }), nullptr, &sem);
+
+        vk.setDebugUtilsObjectNameEXT(tmp((VkDebugUtilsObjectNameInfoEXT) {
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_SEMAPHORE,
+            .objectHandle = reinterpret_cast<uint64_t>(sem),
+            .pObjectName = "11_present_image.sem",
+        }));
+
         vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
             .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
             .dependencyFlags = 0,
@@ -108,8 +116,8 @@ int main() {
             .pSignalSemaphores = &sem,
         }), fence);
 
-        swapchain.add_to_delete_queue([=, &context]() {
-            vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);
+        swapchain.add_to_delete_queue(fence, [=, &context]() {
+            //vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);
             vkDestroyFence(context.device, fence, nullptr);
             vkDestroySemaphore(context.device, sem, nullptr);
             vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);

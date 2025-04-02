@@ -293,7 +293,7 @@ int main() {
             .pSignalSemaphores = &sem,
         }), VK_NULL_HANDLE);
 
-        swapchain.add_to_delete_queue([=, &context]() {
+        swapchain.add_to_delete_queue(std::nullopt, [=, &context]() {
             vkDestroySemaphore(context.device, sem, nullptr);
             vkFreeDescriptorSets(context.device, pool, 1, &set);
             vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
