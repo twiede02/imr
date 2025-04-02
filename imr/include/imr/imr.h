@@ -95,10 +95,10 @@ namespace imr {
 
             class Impl;
             std::unique_ptr<Impl> _impl;
-        private:
-            Frame(Swapchain&);
+
+            Frame(Impl&&);
             Frame(Frame&) = delete;
-            friend Swapchain;
+            ~Frame();
         };
 
         void beginFrame(std::function<void(Swapchain::Frame&)>&& fn);
@@ -108,8 +108,6 @@ namespace imr {
 
         class Impl;
         std::unique_ptr<Impl> _impl;
-    private:
-        std::tuple<VkImage, VkSemaphore> nextSwapchainImage();
     };
 
     struct FpsCounter {

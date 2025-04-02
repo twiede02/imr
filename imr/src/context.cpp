@@ -44,6 +44,10 @@ Context::Context() {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR,
             .synchronization2 = true,
         })
+        .add_required_extension_features((VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT) {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT,
+            .swapchainMaintenance1 = true
+        })
         .select(); built.has_value())
     {
         _impl->vkb_physical_device = built.value();

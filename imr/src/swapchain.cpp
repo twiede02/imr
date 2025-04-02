@@ -7,22 +7,9 @@
 
 namespace imr {
 
-struct SwapchainSlot {
-    Swapchain& swapchain;
+#define CHECK_VK_THROW(do) CHECK_VK(do, throw std::exception())
 
-    VkImage image;
-    uint32_t image_index;
-
-    VkSemaphore image_acquired;
-    VkSemaphore copy_done;
-
-    VkFence wait_for_previous_present = VK_NULL_HANDLE;
-
-    std::vector<VkFence> cleanup_fences;
-    std::vector<std::function<void(void)>> cleanup_queue;
-
-    void retire();
-};
+struct SwapchainSlot;
 
 struct Swapchain::Impl {
     Context& context;
@@ -30,17 +17,59 @@ struct Swapchain::Impl {
     VkSurfaceKHR surface;
     vkb::Swapchain swapchain;
 
-    SwapchainSlot* current_slot = nullptr;
-    std::vector<SwapchainSlot> slots;
-    size_t slot_counter;
+    std::vector<std::unique_ptr<SwapchainSlot>> slots;
+
+    //std::vector<std::unique_ptr<Frame>> prev_frames;
 };
+
+struct SwapchainSlot {
+    Swapchain& swapchain;
+    SwapchainSlot(Swapchain& s) : swapchain(s) {
+        auto& context = s._impl->context;
+        auto& vk = context.dispatch_tables.device;
+
+        CHECK_VK_THROW(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        }), nullptr, &copy_done));
+
+        vk.setDebugUtilsObjectNameEXT(tmp((VkDebugUtilsObjectNameInfoEXT) {
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_SEMAPHORE,
+            .objectHandle = reinterpret_cast<uint64_t>(copy_done),
+            .pObjectName = "SwapchainSlot::copy_done"
+        }));
+
+        CHECK_VK_THROW(vkCreateFence(context.device, tmp((VkFenceCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+        }), nullptr, &wait_for_previous_present));
+    }
+    SwapchainSlot(SwapchainSlot&) = delete;
+
+    VkImage image;
+    uint32_t image_index;
+
+    VkSemaphore copy_done;
+    VkFence wait_for_previous_present = VK_NULL_HANDLE;
+
+    std::unique_ptr<Swapchain::Frame> frame = nullptr;
+
+    ~SwapchainSlot();
+};
+
+SwapchainSlot::~SwapchainSlot() {
+    auto& context = swapchain._impl->context;
+    vkDestroySemaphore(context.device, copy_done, nullptr);
+    vkDestroyFence(context.device, wait_for_previous_present, nullptr);
+}
 
 struct Swapchain::Frame::Impl {
     Context& context;
     SwapchainSlot& slot;
-};
 
-#define CHECK_VK_THROW(do) CHECK_VK(do, throw std::exception())
+    std::vector<VkFence> cleanup_fences;
+    std::vector<std::function<void(void)>> cleanup_queue;
+};
 
 Swapchain::Swapchain(Context& context, GLFWwindow* window) {
     auto& vk = context.dispatch_tables.device;
@@ -77,8 +106,7 @@ Swapchain::Swapchain(Context& context, GLFWwindow* window) {
     if (preferred)
         builder.set_desired_format(*preferred);
 
-    if (auto built = builder.build(); built.has_value())
-    {
+    if (auto built = builder.build(); built.has_value()) {
         _impl->swapchain = built.value();
     } else {
         fprintf(stderr, "Failed to build a swapchain (size=%d,%d, error=%d).\n", width, height, built.vk_result());
@@ -88,124 +116,98 @@ Swapchain::Swapchain(Context& context, GLFWwindow* window) {
     format = _impl->swapchain.image_format;
 
     for (int i = 0; i < _impl->swapchain.image_count; i++) {
-        SwapchainSlot& slot = _impl->slots.emplace_back(*this);
-        CHECK_VK_THROW(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        }), nullptr, &slot.copy_done));
-
-        vk.setDebugUtilsObjectNameEXT(tmp((VkDebugUtilsObjectNameInfoEXT) {
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_SEMAPHORE,
-            .objectHandle = reinterpret_cast<uint64_t>(slot.copy_done),
-            .pObjectName = "SwapchainSlot::copy_done"
-        }));
-
-        vkCreateFence(context.device, tmp((VkFenceCreateInfo) {
-            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-            .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-        }), nullptr, &slot.wait_for_previous_present);
-
+        _impl->slots.emplace_back(std::make_unique<SwapchainSlot>(*this));
     }
-}
-
-void SwapchainSlot::retire() {
-    auto& context = swapchain._impl->context;
-
-    // Before we can cleanup the resources we need to wait on the relevant fences
-    // for now let's just wait on ALL of them at once
-    if (!cleanup_fences.empty()) {
-        CHECK_VK_THROW(vkWaitForFences(context.device, cleanup_fences.size(), cleanup_fences.data(), true, UINT64_MAX));
-        cleanup_fences.clear();
-    }
-
-    // We want to iterate over the queue in a FIFO manner
-    std::reverse(cleanup_queue.begin(), cleanup_queue.end());
-    for (auto& fn : cleanup_queue) {
-        fn();
-    }
-    cleanup_queue.clear();
 }
 
 /// Acquires the next image
-static SwapchainSlot& nextSwapchainSlot(Swapchain::Impl* _impl) {
+static std::tuple<SwapchainSlot&, VkSemaphore> nextSwapchainSlot(Swapchain::Impl* _impl) {
     auto& context = _impl->context;
     auto& vk = context.dispatch_tables.device;
 
-    if (_impl->current_slot)
-        return *_impl->current_slot;
-    else {
-        uint32_t image_index;
+    uint32_t image_index;
 
-        VkSemaphore image_acquired_semaphore;
-        CHECK_VK_THROW(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        }), nullptr, &image_acquired_semaphore));
+    VkSemaphore image_acquired_semaphore;
+    CHECK_VK_THROW(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+    }), nullptr, &image_acquired_semaphore));
 
-        vk.setDebugUtilsObjectNameEXT(tmp((VkDebugUtilsObjectNameInfoEXT) {
-            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-            .objectType = VK_OBJECT_TYPE_SEMAPHORE,
-            .objectHandle = reinterpret_cast<uint64_t>(image_acquired_semaphore),
-            .pObjectName = "SwapchainSlot::image_acquired"
-        }));
+    vk.setDebugUtilsObjectNameEXT(tmp((VkDebugUtilsObjectNameInfoEXT) {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .objectType = VK_OBJECT_TYPE_SEMAPHORE,
+        .objectHandle = reinterpret_cast<uint64_t>(image_acquired_semaphore),
+        .pObjectName = "SwapchainSlot::image_acquired"
+    }));
 
-        VkResult acquire_result = context.dispatch_tables.device.acquireNextImageKHR(_impl->swapchain, UINT64_MAX, image_acquired_semaphore, VK_NULL_HANDLE, &image_index);
-        switch (acquire_result) {
-            case VK_SUCCESS:
-            case VK_SUBOPTIMAL_KHR: break;
-            case VK_ERROR_OUT_OF_DATE_KHR: {
-                fprintf(stderr, "Acquire failed. We need to resize!\n");
-                throw std::exception();
-            }
-            default:
-                fprintf(stderr, "Acquire result was: %d\n", acquire_result);
-                throw std::exception();
+    VkResult acquire_result = context.dispatch_tables.device.acquireNextImageKHR(_impl->swapchain, UINT64_MAX, image_acquired_semaphore, VK_NULL_HANDLE, &image_index);
+    switch (acquire_result) {
+        case VK_SUCCESS:
+        case VK_SUBOPTIMAL_KHR: break;
+        case VK_ERROR_OUT_OF_DATE_KHR: {
+            fprintf(stderr, "Acquire failed. We need to resize!\n");
+            throw std::exception();
         }
-
-        // We know the next image !
-        auto& slot = _impl->slots[image_index];
-        //printf("Image acquired: %d\n", image_index);
-        slot.image_acquired = image_acquired_semaphore;
-        slot.image = _impl->swapchain.get_images().value()[image_index];
-        slot.image_index = image_index;
-
-        // let's recycle the resources that last slot used...
-        // First make sure the _previous_ present is finished.
-        // We could also set and wait on an acquire fence, but the validation layers are apparently not convinced this is sufficiently safe...
-        CHECK_VK_THROW(vkWaitForFences(context.device, 1, &slot.wait_for_previous_present, true, UINT64_MAX));
-        CHECK_VK_THROW(vkResetFences(context.device, 1, &slot.wait_for_previous_present));
-
-        slot.retire();
-
-        slot.cleanup_queue.emplace_back([=, &context]() {
-            vkDestroySemaphore(context.device, image_acquired_semaphore, nullptr);
-        });
-
-        _impl->current_slot = &slot;
-        return slot;
+        default:
+            fprintf(stderr, "Acquire result was: %d\n", acquire_result);
+            throw std::exception();
     }
+
+    // We know the next image !
+    SwapchainSlot& slot = *_impl->slots[image_index];
+    printf("Image acquired: %d\n", image_index);
+    slot.image = _impl->swapchain.get_images().value()[image_index];
+    slot.image_index = image_index;
+
+    // let's recycle the resources that last slot used...
+    // First make sure the _previous_ present is finished.
+    // We could also set and wait on an acquire fence, but the validation layers are apparently not convinced this is sufficiently safe...
+    CHECK_VK_THROW(vkWaitForFences(context.device, 1, &slot.wait_for_previous_present, true, UINT64_MAX));
+    printf("Waited for %llx\n", (uint64_t) slot.wait_for_previous_present);
+
+    slot.frame.reset();
+
+    return std::tie<SwapchainSlot&, VkSemaphore>(slot, image_acquired_semaphore);
 }
 
 void Swapchain::Frame::add_to_delete_queue(std::optional<VkFence> fence, std::function<void()>&& fn) {
-    auto& slot = _impl->slot;
     if (fence)
-        slot.cleanup_fences.push_back(*fence);
-    slot.cleanup_queue.push_back(std::move(fn));
+        _impl->cleanup_fences.push_back(*fence);
+    _impl->cleanup_queue.push_back(std::move(fn));
 }
 
-std::tuple<VkImage, VkSemaphore> Swapchain::nextSwapchainImage() {
-    auto& slot = nextSwapchainSlot(&*_impl);
-    return std::make_tuple(slot.image, slot.image_acquired);
-}
-
-Swapchain::Frame::Frame(imr::Swapchain& swapchain) {
-    _impl = std::make_unique<Frame::Impl>(swapchain._impl->context, nextSwapchainSlot(&*swapchain._impl));
+Swapchain::Frame::Frame(Impl&& impl) {
+    _impl = std::make_unique<Frame::Impl>(impl);
     swapchain_image = _impl->slot.image;
-    swapchain_image_available = _impl->slot.image_acquired;
 }
 
 void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
-    Frame f(*this);
-    fn(f);
+    auto& context = _impl->context;
+    auto [slot, acquired] = nextSwapchainSlot(&*_impl);
+    slot.frame = std::make_unique<Frame>(std::move(Frame::Impl(context, slot)));
+    slot.frame->swapchain_image_available = acquired;
+    assert(acquired);
+    slot.frame->_impl->cleanup_queue.emplace_back([=, &context]() {
+        vkDestroySemaphore(context.device, acquired, nullptr);
+    });
+
+    fn(*slot.frame);
+}
+
+Swapchain::Frame::~Frame() {
+    printf("Recycling frame in slot %d\n", _impl->slot.image_index);
+    // Before we can cleanup the resources we need to wait on the relevant fences
+    // for now let's just wait on ALL of them at once
+    if (!_impl->cleanup_fences.empty()) {
+        CHECK_VK_THROW(vkWaitForFences(_impl->context.device, _impl->cleanup_fences.size(), _impl->cleanup_fences.data(), true, UINT64_MAX));
+        _impl->cleanup_fences.clear();
+    }
+
+    // We want to iterate over the queue in a FIFO manner
+    std::reverse(_impl->cleanup_queue.begin(), _impl->cleanup_queue.end());
+    for (auto& fn : _impl->cleanup_queue) {
+        fn();
+    }
+    _impl->cleanup_queue.clear();
 }
 
 void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem) {
@@ -217,7 +219,7 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_re
     assert(signal_when_reusable != VK_NULL_HANDLE);
 
     std::vector<VkSemaphore> semaphores;
-    semaphores.push_back(slot.image_acquired);
+    semaphores.push_back(swapchain_image_available);
     if (sem)
         semaphores.push_back(*sem);
 
@@ -317,7 +319,7 @@ void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusa
     auto& vk = context.dispatch_tables.device;
 
     std::vector<VkSemaphore> semaphores;
-    semaphores.push_back(slot.image_acquired);
+    semaphores.push_back(swapchain_image_available);
     if (sem)
         semaphores.push_back(*sem);
 
@@ -441,12 +443,13 @@ void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
     auto& slot = _impl->slot;
     auto& swapchain = slot.swapchain;
     auto& context = _impl->context;
-    //printf("Presenting in slot: %d\n", slot.image_index);
+    printf("Presenting in slot: %d\n", slot.image_index);
 
     std::vector<VkSemaphore> semaphores;
     if (sem)
         semaphores.push_back(*sem);
 
+    CHECK_VK_THROW(vkResetFences(context.device, 1, &slot.wait_for_previous_present));
     VkSwapchainPresentFenceInfoEXT swapchain_present_fence_info_ext = {
         .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_PRESENT_FENCE_INFO_EXT,
         .swapchainCount = 1,
@@ -462,6 +465,7 @@ void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
         .pSwapchains = &swapchain._impl->swapchain.swapchain,
         .pImageIndices = tmp(slot.image_index),
     }));
+    printf("Queued presentation, will signal %llx\n", (uint64_t) slot.wait_for_previous_present);
     switch (present_result) {
         case VK_SUCCESS:
         case VK_SUBOPTIMAL_KHR: break;
@@ -469,17 +473,17 @@ void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
             fprintf(stderr, "Present failed. We need to resize!\n");
             break;
         }
+        default: throw std::exception();
     }
-    swapchain._impl->current_slot = nullptr;
 }
 
 void Swapchain::drain() {
     auto& context = _impl->context;
     vkDeviceWaitIdle(context.device);
 
-    for (auto& slot : _impl->slots) {
-        slot.retire();
-    }
+    for (auto& slot : _impl->slots)
+        slot->frame.reset();
+    //_impl->prev_frames.clear();
 }
 
 Swapchain::~Swapchain() {
@@ -489,10 +493,7 @@ Swapchain::~Swapchain() {
     vkDeviceWaitIdle(context.device);
     VkSurfaceKHR surface = _impl->surface;
 
-    for (auto& slot : _impl->slots) {
-        vkDestroySemaphore(context.device, slot.copy_done, nullptr);
-        vkDestroyFence(context.device, slot.wait_for_previous_present, nullptr);
-    }
+    _impl->slots.clear();
 
     vkb::destroy_swapchain(_impl->swapchain);
     _impl.reset();
