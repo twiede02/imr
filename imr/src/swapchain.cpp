@@ -8,6 +8,8 @@
 namespace imr {
 
 struct SwapchainSlot {
+    Swapchain& swapchain;
+
     VkImage image;
     uint32_t image_index;
 
@@ -29,6 +31,11 @@ struct Swapchain::Impl {
     SwapchainSlot* current_slot = nullptr;
     std::vector<SwapchainSlot> slots;
     size_t slot_counter;
+};
+
+struct Swapchain::Frame::Impl {
+    Context& context;
+    SwapchainSlot& slot;
 };
 
 #define CHECK_VK_THROW(do) CHECK_VK(do, throw std::exception())
@@ -61,22 +68,25 @@ Swapchain::Swapchain(Context& context, GLFWwindow* window) {
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
 
-    if (auto built = vkb::SwapchainBuilder(context.physical_device, context.device, _impl->surface)
-        .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT)
-        .set_desired_format(*preferred)
-        //.set_required_min_image_count(2)
-        .set_desired_extent(width, height)
-        .set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
-        .build(); built.has_value())
+    auto builder = vkb::SwapchainBuilder(context.physical_device, context.device, _impl->surface);
+    builder.add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
+    builder.set_desired_extent(width, height);
+    builder.set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR);
+    if (preferred)
+        builder.set_desired_format(*preferred);
+
+    if (auto built = builder.build(); built.has_value())
     {
         _impl->swapchain = built.value();
-    } else { throw std::exception(); }
+    } else {
+        fprintf(stderr, "Failed to build a swapchain (size=%d,%d, error=%d).\n", width, height, built.vk_result());
+        throw std::exception();
+    }
 
     format = _impl->swapchain.image_format;
 
-    _impl->slots.resize(_impl->swapchain.image_count);
-    for (int i = 0; i < _impl->slots.size(); i++) {
-        SwapchainSlot& slot = _impl->slots[i];
+    for (int i = 0; i < _impl->swapchain.image_count; i++) {
+        SwapchainSlot& slot = _impl->slots.emplace_back(*this);
         CHECK_VK_THROW(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         }), nullptr, &slot.copy_done));
@@ -122,8 +132,12 @@ static SwapchainSlot& nextSwapchainSlot(Swapchain::Impl* _impl) {
         switch (acquire_result) {
             case VK_SUCCESS:
             case VK_SUBOPTIMAL_KHR: break;
+            case VK_ERROR_OUT_OF_DATE_KHR: {
+                fprintf(stderr, "Acquire failed. We need to resize!\n");
+                throw std::exception();
+            }
             default:
-                printf("Acquire result was: %d\n", acquire_result);
+                fprintf(stderr, "Acquire result was: %d\n", acquire_result);
                 throw std::exception();
         }
 
@@ -163,8 +177,8 @@ static SwapchainSlot& nextSwapchainSlot(Swapchain::Impl* _impl) {
     }
 }
 
-void Swapchain::add_to_delete_queue(std::optional<VkFence> fence, std::function<void()>&& fn) {
-    auto& slot = nextSwapchainSlot(&*_impl);
+void Swapchain::Frame::add_to_delete_queue(std::optional<VkFence> fence, std::function<void()>&& fn) {
+    auto& slot = _impl->slot;
     if (fence)
         slot.cleanup_fences.push_back(*fence);
     slot.cleanup_queue.push_back(std::move(fn));
@@ -175,8 +189,20 @@ std::tuple<VkImage, VkSemaphore> Swapchain::nextSwapchainImage() {
     return std::make_tuple(slot.image, slot.image_acquired);
 }
 
-void Swapchain::presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem) {
-    auto& slot = nextSwapchainSlot(&*_impl);
+Swapchain::Frame::Frame(imr::Swapchain& swapchain) {
+    _impl = std::make_unique<Frame::Impl>(swapchain._impl->context, nextSwapchainSlot(&*swapchain._impl));
+    swapchain_image = _impl->slot.image;
+    swapchain_image_available = _impl->slot.image_acquired;
+}
+
+void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
+    Frame f(*this);
+    fn(f);
+}
+
+void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem) {
+    auto& slot = _impl->slot;
+    auto& swapchain = slot.swapchain;
     auto& context = _impl->context;
     auto& vk = context.dispatch_tables.device;
 
@@ -220,15 +246,15 @@ void Swapchain::presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable,
             }
         }),
     }));
-    VkExtent2D src_size = _impl->swapchain.extent;
+    VkExtent2D src_size = swapchain._impl->swapchain.extent;
     vkCmdCopyBufferToImage(cmdbuf, buffer, slot.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, tmp((VkBufferImageCopy) {
         .imageSubresource = {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .layerCount = 1,
         },
         .imageExtent = {
-            .width = _impl->swapchain.extent.width,
-            .height =  _impl->swapchain.extent.height,
+            .width = swapchain._impl->swapchain.extent.width,
+            .height = swapchain._impl->swapchain.extent.height,
             .depth = 1
         }
     }));
@@ -276,8 +302,9 @@ void Swapchain::presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable,
     present(slot.copy_done);
 }
 
-void Swapchain::presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
-    auto& slot = nextSwapchainSlot(&*_impl);
+void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
+    auto& slot = _impl->slot;
+    auto& swapchain = slot.swapchain;
     auto& context = _impl->context;
     auto& vk = context.dispatch_tables.device;
 
@@ -326,7 +353,7 @@ void Swapchain::presentFromImage(VkImage image, VkFence signal_when_reusable, st
     if (image_size)
         src_size = *image_size;
     else
-        src_size = _impl->swapchain.extent;
+        src_size = swapchain._impl->swapchain.extent;
     vkCmdBlitImage(cmdbuf, image, src_layout, slot.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, tmp((VkImageBlit) {
         .srcSubresource = {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -347,8 +374,8 @@ void Swapchain::presentFromImage(VkImage image, VkFence signal_when_reusable, st
         .dstOffsets = {
             {},
             {
-                .x = (int32_t) _impl->swapchain.extent.width,
-                .y = (int32_t) _impl->swapchain.extent.height,
+                .x = (int32_t) swapchain._impl->swapchain.extent.width,
+                .y = (int32_t) swapchain._impl->swapchain.extent.height,
                 .z = 1,
             },
         }
@@ -402,8 +429,9 @@ void Swapchain::presentFromImage(VkImage image, VkFence signal_when_reusable, st
     present(slot.copy_done);
 }
 
-void Swapchain::present(std::optional<VkSemaphore> sem) {
-    auto& slot = nextSwapchainSlot(&*_impl);
+void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
+    auto& slot = _impl->slot;
+    auto& swapchain = slot.swapchain;
     auto& context = _impl->context;
     //printf("Presenting in slot: %d\n", slot.image_index);
 
@@ -417,16 +445,24 @@ void Swapchain::present(std::optional<VkSemaphore> sem) {
         .pFences = &slot.wait_for_previous_present
     };
 
-    vkQueuePresentKHR(context.main_queue, tmp((VkPresentInfoKHR) {
+    VkResult present_result = vkQueuePresentKHR(context.main_queue, tmp((VkPresentInfoKHR) {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .pNext = &swapchain_present_fence_info_ext,
         .waitSemaphoreCount = static_cast<uint32_t>(semaphores.size()),
         .pWaitSemaphores = semaphores.data(),
         .swapchainCount = 1,
-        .pSwapchains = &_impl->swapchain.swapchain,
+        .pSwapchains = &swapchain._impl->swapchain.swapchain,
         .pImageIndices = tmp(slot.image_index),
     }));
-    _impl->current_slot = nullptr;
+    switch (present_result) {
+        case VK_SUCCESS:
+        case VK_SUBOPTIMAL_KHR: break;
+        case VK_ERROR_OUT_OF_DATE_KHR: {
+            fprintf(stderr, "Present failed. We need to resize!\n");
+            break;
+        }
+    }
+    swapchain._impl->current_slot = nullptr;
 }
 
 Swapchain::~Swapchain() {

@@ -123,182 +123,184 @@ int main() {
         fps_counter.tick();
         fps_counter.updateGlfwWindowTitle(window);
 
-        vkWaitForFences(context.device, 1, &fence, VK_TRUE, UINT64_MAX);
-        vkResetFences(context.device, 1, &fence);
+        swapchain.beginFrame([&](auto& frame) {
+            vkWaitForFences(context.device, 1, &fence, VK_TRUE, UINT64_MAX);
+            vkResetFences(context.device, 1, &fence);
 
-        VkCommandBuffer cmdbuf;
-        vkAllocateCommandBuffers(context.device, tmp((VkCommandBufferAllocateInfo) {
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .commandPool = context.pool,
-            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            .commandBufferCount = 1,
-        }), &cmdbuf);
+            VkCommandBuffer cmdbuf;
+            vkAllocateCommandBuffers(context.device, tmp((VkCommandBufferAllocateInfo) {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                .commandPool = context.pool,
+                .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                .commandBufferCount = 1,
+            }), &cmdbuf);
 
-        vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-        }));
+            vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
+                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+                .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+            }));
 
-        VkSemaphore sem;
-        vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        }), nullptr, &sem);
-        vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
-            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-            .dependencyFlags = 0,
-            .imageMemoryBarrierCount = 1,
-            .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
-                .srcAccessMask = VK_ACCESS_2_NONE,
-                .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .image = image->handle,
-                .subresourceRange = {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .levelCount = 1,
-                    .layerCount = 1,
+            VkSemaphore sem;
+            vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
+                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+            }), nullptr, &sem);
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                .dependencyFlags = 0,
+                .imageMemoryBarrierCount = 1,
+                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                    .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
+                    .srcAccessMask = VK_ACCESS_2_NONE,
+                    .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                    .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                    .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                    .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .image = image->handle,
+                    .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .levelCount = 1,
+                        .layerCount = 1,
+                    }
+                }),
+            }));
+
+            vk.cmdClearColorImage(cmdbuf, image->handle, VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
+                .float32 = { 0.0f, 0.0f, 0.0f, 1.0f},
+            }), 1, tmp((VkImageSubresourceRange) {
+                .aspectMask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
+                .levelCount = 1,
+                .layerCount = 1
+            }));
+
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                .dependencyFlags = 0,
+                .imageMemoryBarrierCount = 1,
+                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                    .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                    .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                    .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                    .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .image = image->handle,
+                    .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .levelCount = 1,
+                        .layerCount = 1,
+                    }
+                }),
+            }));
+
+            VkDescriptorSet set;
+            vkAllocateDescriptorSets(context.device, tmp((VkDescriptorSetAllocateInfo) {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = pool,
+                .descriptorSetCount = 1,
+                .pSetLayouts = &set0_layout,
+            }), &set);
+
+            vkUpdateDescriptorSets(context.device, 1, tmp((VkWriteDescriptorSet) {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = set,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .pImageInfo = tmp((VkDescriptorImageInfo) {
+                    .sampler = VK_NULL_HANDLE,
+                    .imageView = view,
+                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                }),
+            }), 0, nullptr);
+
+            push_constants.time = ((shd_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
+
+            vk.cmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+            vk.cmdBindDescriptorSets(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 1, &set, 0, nullptr);
+
+            std::vector<Tri> tris;
+
+            tris.push_back({
+                               { -0.5, 0.5 },
+                               { 0.0, -0.5 },
+                               { 0.5, 0.5}
+                           });
+            tris.push_back({
+                               { -0.5+0.25, 0.5 },
+                               { 0.0+0.25, -0.5 },
+                               { 0.5+0.25, 0.5}
+                           });
+
+            bool first = true;
+            for (auto tri : tris) {
+                if (first) first = false;
+                else {
+                    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+                        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                        .dependencyFlags = 0,
+                        .imageMemoryBarrierCount = 1,
+                        .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                            .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                            .srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
+                            .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                            .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
+                            .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+                            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                            .image = image->handle,
+                            .subresourceRange = {
+                                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                .levelCount = 1,
+                                .layerCount = 1,
+                            }
+                        }),
+                    }));
                 }
-            }),
-        }));
 
-        vk.cmdClearColorImage(cmdbuf, image->handle, VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
-            .float32 = { 0.0f, 0.0f, 0.0f, 1.0f},
-        }), 1, tmp((VkImageSubresourceRange) {
-            .aspectMask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
-            .levelCount = 1,
-            .layerCount = 1
-        }));
-
-        vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
-            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-            .dependencyFlags = 0,
-            .imageMemoryBarrierCount = 1,
-            .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .image = image->handle,
-                .subresourceRange = {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .levelCount = 1,
-                    .layerCount = 1,
-                }
-            }),
-        }));
-
-        VkDescriptorSet set;
-        vkAllocateDescriptorSets(context.device, tmp((VkDescriptorSetAllocateInfo) {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = pool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &set0_layout,
-        }), &set);
-
-        vkUpdateDescriptorSets(context.device, 1, tmp((VkWriteDescriptorSet) {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = set,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            .pImageInfo = tmp((VkDescriptorImageInfo) {
-                .sampler = VK_NULL_HANDLE,
-                .imageView = view,
-                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-            }),
-        }), 0, nullptr);
-
-        push_constants.time = ((shd_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
-
-        vk.cmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
-        vk.cmdBindDescriptorSets(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 1, &set, 0, nullptr);
-
-        std::vector<Tri> tris;
-
-        tris.push_back({
-            { -0.5, 0.5 },
-            { 0.0, -0.5 },
-            { 0.5, 0.5}
-        });
-        tris.push_back({
-            { -0.5+0.25, 0.5 },
-            { 0.0+0.25, -0.5 },
-            { 0.5+0.25, 0.5}
-        });
-
-        bool first = true;
-        for (auto tri : tris) {
-            if (first) first = false;
-            else {
-                vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
-                    .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                    .dependencyFlags = 0,
-                    .imageMemoryBarrierCount = 1,
-                    .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
-                        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                        .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        .srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
-                        .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
-                        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-                        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                        .image = image->handle,
-                        .subresourceRange = {
-                            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                            .levelCount = 1,
-                            .layerCount = 1,
-                        }
-                    }),
-                }));
+                push_constants.tri = tri;
+                vk.cmdPushConstants(cmdbuf, layout, VK_SHADER_STAGE_ALL, 0, sizeof(push_constants), &push_constants);
+                vk.cmdDispatch(cmdbuf, (image->size.width + 31) / 32, (image->size.height + 31) / 32, 1);
             }
 
-            push_constants.tri = tri;
-            vk.cmdPushConstants(cmdbuf, layout, VK_SHADER_STAGE_ALL, 0, sizeof(push_constants), &push_constants);
-            vk.cmdDispatch(cmdbuf, (image->size.width + 31) / 32, (image->size.height + 31) / 32, 1);
-        }
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                .dependencyFlags = 0,
+                .imageMemoryBarrierCount = 1,
+                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                    .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                    .srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                    .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                    .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
+                    .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .image = image->handle,
+                    .subresourceRange = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .levelCount = 1,
+                        .layerCount = 1,
+                    }
+                }),
+            }));
 
-        vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
-            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-            .dependencyFlags = 0,
-            .imageMemoryBarrierCount = 1,
-            .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                .srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-                .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .image = image->handle,
-                .subresourceRange = {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .levelCount = 1,
-                    .layerCount = 1,
-                }
-            }),
-        }));
+            vkEndCommandBuffer(cmdbuf);
+            vk.queueSubmit(context.main_queue, 1, tmp((VkSubmitInfo) {
+                .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+                .waitSemaphoreCount = 0,
+                .commandBufferCount = 1,
+                .pCommandBuffers = &cmdbuf,
+                .signalSemaphoreCount = 1,
+                .pSignalSemaphores = &sem,
+            }), VK_NULL_HANDLE);
 
-        vkEndCommandBuffer(cmdbuf);
-        vk.queueSubmit(context.main_queue, 1, tmp((VkSubmitInfo) {
-            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .waitSemaphoreCount = 0,
-            .commandBufferCount = 1,
-            .pCommandBuffers = &cmdbuf,
-            .signalSemaphoreCount = 1,
-            .pSignalSemaphores = &sem,
-        }), VK_NULL_HANDLE);
-
-        swapchain.add_to_delete_queue(std::nullopt, [=, &context]() {
-            vkDestroySemaphore(context.device, sem, nullptr);
-            vkFreeDescriptorSets(context.device, pool, 1, &set);
-            vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
+            frame.add_to_delete_queue(std::nullopt, [=, &context]() {
+                vkDestroySemaphore(context.device, sem, nullptr);
+                vkFreeDescriptorSets(context.device, pool, 1, &set);
+                vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
+            });
+            frame.presentFromImage(image->handle, fence, { sem }, VK_IMAGE_LAYOUT_GENERAL, std::make_optional<VkExtent2D>(image->size.width, image->size.height));
         });
-        swapchain.presentFromImage(image->handle, fence, { sem }, VK_IMAGE_LAYOUT_GENERAL, std::make_optional<VkExtent2D>(image->size.width, image->size.height));
 
         glfwPollEvents();
     }

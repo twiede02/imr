@@ -11,7 +11,7 @@
 
 #include <cstdio>
 
-#define CHECK_VK(op, else) if (op != VK_SUCCESS) { printf("Check failed at %s\n", #op); else; }
+#define CHECK_VK(op, else) if (op != VK_SUCCESS) { fprintf(stderr, "Check failed at %s\n", #op); else; }
 
 inline auto tmp(auto&& t) { return &t; }
 
@@ -83,15 +83,30 @@ namespace imr {
 
         VkFormat format;
 
-        void add_to_delete_queue(std::optional<VkFence> fence, std::function<void(void)>&& fn);
-        std::tuple<VkImage, VkSemaphore> nextSwapchainImage();
-        void presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem);
-        void presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
+        struct Frame {
+            void presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem);
+            void presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
 
-        void present(std::optional<VkSemaphore> sem);
+            VkImage swapchain_image;
+            VkSemaphore swapchain_image_available;
+            void present(std::optional<VkSemaphore> sem);
+
+            void add_to_delete_queue(std::optional<VkFence> fence, std::function<void(void)>&& fn);
+
+            class Impl;
+            std::unique_ptr<Impl> _impl;
+        private:
+            Frame(Swapchain&);
+            Frame(Frame&) = delete;
+            friend Swapchain;
+        };
+
+        void beginFrame(std::function<void(Swapchain::Frame&)>&& fn);
 
         class Impl;
         std::unique_ptr<Impl> _impl;
+    private:
+        std::tuple<VkImage, VkSemaphore> nextSwapchainImage();
     };
 
     struct FpsCounter {
