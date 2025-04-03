@@ -169,6 +169,7 @@ static std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(
         case VK_SUBOPTIMAL_KHR: break;
         case VK_ERROR_OUT_OF_DATE_KHR: {
             fprintf(stderr, "Acquire failed. We need to resize!\n");
+            vkDestroySemaphore(context.device, image_acquired_semaphore, nullptr);
             return std::nullopt;
         }
         default:
