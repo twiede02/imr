@@ -2,8 +2,8 @@
 
 namespace imr {
 
-Context::Context(std::function<void(vkb::InstanceBuilder)> instance_custom,
-                 std::function<void(vkb::PhysicalDeviceSelector)> device_custom) {
+Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom,
+                 std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom) {
     _impl = std::make_unique<Impl>();
 
     auto instance_builder = vkb::InstanceBuilder()
