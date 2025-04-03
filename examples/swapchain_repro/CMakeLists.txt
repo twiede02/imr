@@ -1,2 +1,0 @@
-add_executable(swapchain_repro swapchain_repro.cpp)
-target_link_libraries(swapchain_repro imr)

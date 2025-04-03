@@ -1,6 +1,5 @@
 add_subdirectory(10_intro)
 add_subdirectory(11_present_image)
-add_subdirectory(swapchain_repro)
 
 add_executable(demo main.cpp)
 target_link_libraries(demo imr)
