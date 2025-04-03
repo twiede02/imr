@@ -11,7 +11,7 @@ Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom,
         .request_validation_layers()
         .set_minimum_instance_version(1, 3, 0)
         .enable_extension("VK_KHR_get_surface_capabilities2")
-        .enable_extension("VK_EXT_surface_maintenance1")
+        //.enable_extension("VK_EXT_surface_maintenance1")
         .require_api_version(1, 3, 0);
 
     instance_custom(instance_builder);
@@ -27,10 +27,8 @@ Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom,
     auto device_selector = vkb::PhysicalDeviceSelector(_impl->vkb_instance)
         .add_required_extension("VK_KHR_maintenance2")
         .add_required_extension("VK_KHR_create_renderpass2")
-        .add_required_extension("VK_KHR_depth_stencil_resolve")
         .add_required_extension("VK_KHR_dynamic_rendering")
         .add_required_extension("VK_KHR_synchronization2")
-        .add_required_extension("VK_EXT_swapchain_maintenance1")
         .set_minimum_version(1, 2)
         .set_required_features((VkPhysicalDeviceFeatures) {
             .shaderUniformBufferArrayDynamicIndexing = true,
@@ -46,10 +44,6 @@ Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom,
         .add_required_extension_features((VkPhysicalDeviceSynchronization2FeaturesKHR) {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR,
             .synchronization2 = true,
-        })
-        .add_required_extension_features((VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT) {
-            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT,
-            .swapchainMaintenance1 = true
         });
 
     device_custom(device_selector);
