@@ -17,7 +17,8 @@ inline auto tmp(auto&& t) { return &t; }
 
 namespace imr {
     struct Context {
-        Context();
+        Context(std::function<void(vkb::InstanceBuilder)> instance_custom = [](auto) {},
+                std::function<void(vkb::PhysicalDeviceSelector)> device_custom = [](auto) {});
         Context(Context&) = delete;
         ~Context();
 

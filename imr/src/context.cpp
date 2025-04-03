@@ -2,22 +2,21 @@
 
 namespace imr {
 
-Context::Context() {
+Context::Context(std::function<void(vkb::InstanceBuilder)> instance_custom,
+                 std::function<void(vkb::PhysicalDeviceSelector)> device_custom) {
     _impl = std::make_unique<Impl>();
 
-    if (auto built = vkb::InstanceBuilder()
-        //.use_default_debug_messenger()
-        .set_debug_callback([](auto t, auto s, const VkDebugUtilsMessengerCallbackDataEXT* c, auto p)-> VkBool32 {
-            printf("%s\n", c->pMessage);
-            //abort();
-            return 0;
-        })
+    auto instance_builder = vkb::InstanceBuilder()
+        .use_default_debug_messenger()
         .request_validation_layers()
         .set_minimum_instance_version(1, 3, 0)
         .enable_extension("VK_KHR_get_surface_capabilities2")
         .enable_extension("VK_EXT_surface_maintenance1")
-        .enable_extension("VK_EXT_surface_maintenance1")
-        .require_api_version(1, 3, 0)
+        .require_api_version(1, 3, 0);
+
+    instance_custom(instance_builder);
+
+    if (auto built = instance_builder
         .build(); built.has_value())
     {
         _impl->vkb_instance = built.value();
@@ -25,8 +24,7 @@ Context::Context() {
         dispatch_tables.instance = _impl->vkb_instance.make_table();
     } else { throw std::exception(); }
 
-    if (auto built = vkb::PhysicalDeviceSelector(_impl->vkb_instance)
-        .add_required_extension("VK_KHR_multiview")
+    auto device_selector = vkb::PhysicalDeviceSelector(_impl->vkb_instance)
         .add_required_extension("VK_KHR_maintenance2")
         .add_required_extension("VK_KHR_create_renderpass2")
         .add_required_extension("VK_KHR_depth_stencil_resolve")
@@ -43,7 +41,7 @@ Context::Context() {
             .scalarBlockLayout = true,
             .bufferDeviceAddress = true,
         })
-        // .set_surface(surface)
+            // .set_surface(surface)
         .defer_surface_initialization()
         .add_required_extension_features((VkPhysicalDeviceSynchronization2FeaturesKHR) {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR,
@@ -52,8 +50,11 @@ Context::Context() {
         .add_required_extension_features((VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT) {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT,
             .swapchainMaintenance1 = true
-        })
-        .select(); built.has_value())
+        });
+
+    device_custom(device_selector);
+
+    if (auto built = device_selector.select(); built.has_value())
     {
         _impl->vkb_physical_device = built.value();
         physical_device = _impl->vkb_physical_device.physical_device;
