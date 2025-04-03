@@ -112,7 +112,7 @@ int main() {
                 .pSignalSemaphores = &sem,
             }), fence);
 
-            printf("Frame submitted with fence = %llx\n", fence);
+            //printf("Frame submitted with fence = %llx\n", fence);
 
             frame.add_to_delete_queue(fence, [=, &context]() {
                 //vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);

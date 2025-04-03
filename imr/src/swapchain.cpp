@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <vector>
+#include <algorithm>
 
 namespace imr {
 
@@ -157,7 +158,7 @@ static std::tuple<SwapchainSlot&, VkSemaphore> nextSwapchainSlot(Swapchain::Impl
 
     // We know the next image !
     SwapchainSlot& slot = *_impl->slots[image_index];
-    printf("Image acquired: %d\n", image_index);
+    //printf("Image acquired: %d\n", image_index);
     slot.image = _impl->swapchain.get_images().value()[image_index];
     slot.image_index = image_index;
 
@@ -165,7 +166,7 @@ static std::tuple<SwapchainSlot&, VkSemaphore> nextSwapchainSlot(Swapchain::Impl
     // First make sure the _previous_ present is finished.
     // We could also set and wait on an acquire fence, but the validation layers are apparently not convinced this is sufficiently safe...
     CHECK_VK_THROW(vkWaitForFences(context.device, 1, &slot.wait_for_previous_present, true, UINT64_MAX));
-    printf("Waited for %llx\n", (uint64_t) slot.wait_for_previous_present);
+    //printf("Waited for %llx\n", (uint64_t) slot.wait_for_previous_present);
 
     slot.frame.reset();
 
@@ -195,17 +196,17 @@ void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
         vkDestroySemaphore(context.device, acquired, nullptr);
     });
 
-    printf("Preparing frame: %d\n", slot.frame->id);
+    //printf("Preparing frame: %d\n", slot.frame->id);
     fn(*slot.frame);
 }
 
 Swapchain::Frame::~Frame() {
-    printf("Recycling frame %d in slot %d\n", id, _impl->slot.image_index);
+    //printf("Recycling frame %d in slot %d\n", id, _impl->slot.image_index);
     // Before we can cleanup the resources we need to wait on the relevant fences
     // for now let's just wait on ALL of them at once
     if (!_impl->cleanup_fences.empty()) {
         for (auto fence : _impl->cleanup_fences) {
-            printf("Waited on fence = %llx\n", fence);
+            //printf("Waited on fence = %llx\n", fence);
             CHECK_VK_THROW(vkWaitForFences(_impl->context.device, 1, &fence, true, UINT64_MAX));
         }
         _impl->cleanup_fences.clear();
@@ -452,7 +453,7 @@ void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
     auto& slot = _impl->slot;
     auto& swapchain = slot.swapchain;
     auto& context = _impl->context;
-    printf("Presenting in slot: %d\n", slot.image_index);
+    //printf("Presenting in slot: %d\n", slot.image_index);
 
     std::vector<VkSemaphore> semaphores;
     if (sem)
@@ -474,7 +475,7 @@ void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
         .pSwapchains = &swapchain._impl->swapchain.swapchain,
         .pImageIndices = tmp(slot.image_index),
     }));
-    printf("Queued presentation, will signal %llx\n", (uint64_t) slot.wait_for_previous_present);
+    //printf("Queued presentation, will signal %llx\n", (uint64_t) slot.wait_for_previous_present);
     switch (present_result) {
         case VK_SUCCESS:
         case VK_SUBOPTIMAL_KHR: break;
