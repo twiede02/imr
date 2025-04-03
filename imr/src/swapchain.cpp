@@ -141,7 +141,6 @@ void Swapchain::Impl::destroy_swapchain() {
 }
 
 Swapchain::Impl::~Impl() {
-    destroy_swapchain();
     vkDestroySurfaceKHR(context.instance, surface, nullptr);
 }
 
@@ -230,6 +229,7 @@ void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
 
         //printf("Preparing frame: %d\n", slot.frame->id);
         fn(*slot.frame);
+        break;
     }
 }
 
@@ -535,6 +535,7 @@ Swapchain::~Swapchain() {
     auto& context = _impl->context;
     vkDeviceWaitIdle(context.device);
 
+    _impl->destroy_swapchain();
     _impl.reset();
 }
 
