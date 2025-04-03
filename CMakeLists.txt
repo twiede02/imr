@@ -10,4 +10,7 @@ add_subdirectory(vk-bootstrap)
 add_subdirectory(VulkanMemoryAllocator)
 
 add_subdirectory(imr)
-add_subdirectory(examples)
+
+if (PROJECT_IS_TOP_LEVEL)
+    add_subdirectory(examples)
+endif ()
