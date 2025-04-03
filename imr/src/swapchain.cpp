@@ -13,17 +13,20 @@ namespace imr {
 struct SwapchainSlot;
 
 struct Swapchain::Impl {
+    Swapchain& parent;
     Context& context;
     GLFWwindow* window = nullptr;
-    VkSurfaceKHR surface;
-    vkb::Swapchain swapchain;
-    size_t count = 0;
+    Impl(Swapchain& parent, Context&, GLFWwindow*);
+    ~Impl();
 
+    VkSurfaceKHR surface;
+    size_t frame_counter = 0;
+
+    vkb::Swapchain swapchain;
     std::vector<std::unique_ptr<SwapchainSlot>> slots;
 
-    std::vector<VkSemaphore> sem_pool;
-
-    //std::vector<std::unique_ptr<Frame>> prev_frames;
+    void build_swapchain();
+    void destroy_swapchain();
 };
 
 struct SwapchainSlot {
@@ -78,15 +81,25 @@ struct Swapchain::Frame::Impl {
 Swapchain::Swapchain(Context& context, GLFWwindow* window) {
     auto& vk = context.dispatch_tables.device;
 
-    _impl = std::make_unique<Swapchain::Impl>(context);
-    CHECK_VK_THROW(glfwCreateWindowSurface(context.instance, window, nullptr, &_impl->surface));
+    _impl = std::make_unique<Swapchain::Impl>(*this, context, window);
+    _impl->build_swapchain();
+}
 
+VkFormat Swapchain::format() const {
+    return _impl->swapchain.image_format;
+}
+
+Swapchain::Impl::Impl(Swapchain& parent, Context& context, GLFWwindow* window) : parent(parent), context(context), window(window) {
+    CHECK_VK_THROW(glfwCreateWindowSurface(context.instance, window, nullptr, &surface));
+}
+
+void Swapchain::Impl::build_swapchain() {
     uint32_t surface_formats_count;
-    CHECK_VK_THROW(vkGetPhysicalDeviceSurfaceFormatsKHR(context.physical_device, _impl->surface, &surface_formats_count, nullptr));
+    CHECK_VK_THROW(vkGetPhysicalDeviceSurfaceFormatsKHR(context.physical_device, surface, &surface_formats_count, nullptr));
 
     std::vector<VkSurfaceFormatKHR> formats;
     formats.resize(surface_formats_count);
-    CHECK_VK_THROW(vkGetPhysicalDeviceSurfaceFormatsKHR(context.physical_device, _impl->surface, &surface_formats_count, formats.data()));
+    CHECK_VK_THROW(vkGetPhysicalDeviceSurfaceFormatsKHR(context.physical_device, surface, &surface_formats_count, formats.data()));
 
     std::optional<VkSurfaceFormatKHR> preferred;
     for (auto format : formats) {
@@ -103,7 +116,7 @@ Swapchain::Swapchain(Context& context, GLFWwindow* window) {
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
 
-    auto builder = vkb::SwapchainBuilder(context.physical_device, context.device, _impl->surface);
+    auto builder = vkb::SwapchainBuilder(context.physical_device, context.device, surface);
     builder.add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
     builder.set_desired_extent(width, height);
     builder.set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR);
@@ -111,21 +124,29 @@ Swapchain::Swapchain(Context& context, GLFWwindow* window) {
         builder.set_desired_format(*preferred);
 
     if (auto built = builder.build(); built.has_value()) {
-        _impl->swapchain = built.value();
+        swapchain = built.value();
     } else {
         fprintf(stderr, "Failed to build a swapchain (size=%d,%d, error=%d).\n", width, height, built.vk_result());
         throw std::exception();
     }
 
-    format = _impl->swapchain.image_format;
-
-    for (int i = 0; i < _impl->swapchain.image_count; i++) {
-        _impl->slots.emplace_back(std::make_unique<SwapchainSlot>(*this));
+    for (int i = 0; i < swapchain.image_count; i++) {
+        slots.emplace_back(std::make_unique<SwapchainSlot>(parent));
     }
 }
 
+void Swapchain::Impl::destroy_swapchain() {
+    slots.clear();
+    vkb::destroy_swapchain(swapchain);
+}
+
+Swapchain::Impl::~Impl() {
+    destroy_swapchain();
+    vkDestroySurfaceKHR(context.instance, surface, nullptr);
+}
+
 /// Acquires the next image
-static std::tuple<SwapchainSlot&, VkSemaphore> nextSwapchainSlot(Swapchain::Impl* _impl) {
+static std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(Swapchain::Impl* _impl) {
     auto& context = _impl->context;
     auto& vk = context.dispatch_tables.device;
 
@@ -149,7 +170,7 @@ static std::tuple<SwapchainSlot&, VkSemaphore> nextSwapchainSlot(Swapchain::Impl
         case VK_SUBOPTIMAL_KHR: break;
         case VK_ERROR_OUT_OF_DATE_KHR: {
             fprintf(stderr, "Acquire failed. We need to resize!\n");
-            throw std::exception();
+            return std::nullopt;
         }
         default:
             fprintf(stderr, "Acquire result was: %d\n", acquire_result);
@@ -186,18 +207,30 @@ Swapchain::Frame::Frame(Impl&& impl) {
 
 void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
     auto& context = _impl->context;
-    auto [slot, acquired] = nextSwapchainSlot(&*_impl);
-    slot.frame.reset();
-    slot.frame = std::make_unique<Frame>(std::move(Frame::Impl(context, slot)));
-    slot.frame->swapchain_image_available = acquired;
-    slot.frame->id = _impl->count++;
-    assert(acquired);
-    slot.frame->_impl->cleanup_queue.emplace_back([=, &context]() {
-        vkDestroySemaphore(context.device, acquired, nullptr);
-    });
+    while (true) {
+        auto result = nextSwapchainSlot(&*_impl);
+        if (!result) {
+            glfwPollEvents();
+            drain();
+            _impl->destroy_swapchain();
+            _impl->build_swapchain();
+            continue;
+        }
+        auto [slot, acquired] = *result;
+        slot.frame.reset();
+        slot.frame = std::make_unique<Frame>(std::move(Frame::Impl(context, slot)));
+        slot.frame->swapchain_image_available = acquired;
+        slot.frame->id = _impl->frame_counter++;
+        slot.frame->width = _impl->swapchain.extent.width;
+        slot.frame->height = _impl->swapchain.extent.height;
+        assert(acquired);
+        slot.frame->_impl->cleanup_queue.emplace_back([=, &context]() {
+            vkDestroySemaphore(context.device, acquired, nullptr);
+        });
 
-    //printf("Preparing frame: %d\n", slot.frame->id);
-    fn(*slot.frame);
+        //printf("Preparing frame: %d\n", slot.frame->id);
+        fn(*slot.frame);
+    }
 }
 
 Swapchain::Frame::~Frame() {
@@ -501,13 +534,8 @@ Swapchain::~Swapchain() {
 
     auto& context = _impl->context;
     vkDeviceWaitIdle(context.device);
-    VkSurfaceKHR surface = _impl->surface;
 
-    _impl->slots.clear();
-
-    vkb::destroy_swapchain(_impl->swapchain);
     _impl.reset();
-    vkDestroySurfaceKHR(context.instance, surface, nullptr);
 }
 
 }

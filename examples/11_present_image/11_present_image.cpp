@@ -3,11 +3,9 @@
 
 int main() {
     glfwInit();
-    glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
-    int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
 
     imr::Context context;
     imr::Swapchain swapchain(context, window);

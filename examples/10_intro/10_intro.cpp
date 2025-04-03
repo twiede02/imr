@@ -25,9 +25,10 @@ int main() {
     }), nullptr, &fence);
 
     while (!glfwWindowShouldClose(window)) {
-        swapchain.beginFrame([&](auto& frame) {
-            int nwidth, nheight;
-            glfwGetFramebufferSize(window, &nwidth, &nheight);
+        using Frame = imr::Swapchain::Frame;
+        swapchain.beginFrame([&](Frame& frame) {
+            int nwidth = frame.width;
+            int nheight = frame.height;
 
             if (nwidth != width || nheight != height) {
                 width = nwidth;
