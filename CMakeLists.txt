@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(hag)
+project(imr)
 
 find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)

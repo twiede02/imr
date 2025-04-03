@@ -5,14 +5,14 @@
 #include <stdint.h>
 #if defined(__MINGW64__) | defined(__MINGW32__)
 #include <pthread.h>
-uint64_t shd_get_time_nano() {
+uint64_t imr_get_time_nano() {
     struct timespec t;
     clock_gettime(CLOCK_REALTIME, &t);
     return t.tv_sec * 1000000000 + t.tv_nsec;
 }
 #else
 #include <time.h>
-uint64_t shd_get_time_nano(void) {
+uint64_t imr_get_time_nano(void) {
     struct timespec t;
     timespec_get(&t, TIME_UTC);
     return t.tv_sec * 1000000000 + t.tv_nsec;
@@ -34,7 +34,7 @@ static long get_file_size(FILE* f) {
     return fsize;
 }
 
-bool shd_read_file(const char* filename, size_t* size, char** output) {
+bool imr_read_file(const char* filename, size_t* size, char** output) {
     FILE *f = fopen(filename, "rb");
     if (f == NULL)
         return false;
@@ -67,7 +67,7 @@ bool shd_read_file(const char* filename, size_t* size, char** output) {
     return false;
 }
 
-bool shd_write_file(const char* filename, size_t size, const char* data) {
+bool imr_write_file(const char* filename, size_t size, const char* data) {
     FILE* f = fopen(filename, "wb");
     if (f == NULL)
         return false;
@@ -94,7 +94,7 @@ bool shd_write_file(const char* filename, size_t size, const char* data) {
 #include <unistd.h>
 #include <stdio.h>
 #endif
-const char* shd_get_executable_location(void) {
+const char* imr_get_executable_location(void) {
     size_t len = 256;
     char* buf = calloc(len + 1, 1);
 #ifdef WIN32

@@ -39,7 +39,7 @@ int main() {
 
     size_t spirv_bytes_count;
     uint32_t* spirv_bytes;
-    if (!shd_read_file((std::filesystem::path(shd_get_executable_location()).parent_path().string() + "/checkerboard.spv").c_str(), &spirv_bytes_count, (unsigned char**) &spirv_bytes))
+    if (!imr_read_file((std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/checkerboard.spv").c_str(), &spirv_bytes_count, (unsigned char**) &spirv_bytes))
         abort();
 
     VkShaderModule module;
@@ -119,7 +119,7 @@ int main() {
     }), nullptr, &view);
 
     while (!glfwWindowShouldClose(window)) {
-        uint64_t now = shd_get_time_nano();
+        uint64_t now = imr_get_time_nano();
         fps_counter.tick();
         fps_counter.updateGlfwWindowTitle(window);
 
@@ -214,7 +214,7 @@ int main() {
                 }),
             }), 0, nullptr);
 
-            push_constants.time = ((shd_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
+            push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
 
             vk.cmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
             vk.cmdBindDescriptorSets(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 1, &set, 0, nullptr);

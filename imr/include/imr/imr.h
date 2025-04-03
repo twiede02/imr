@@ -1,5 +1,5 @@
-#ifndef HAG_H
-#define HAG_H
+#ifndef IMR_H
+#define IMR_H
 
 #include "vulkan/vulkan_core.h"
 #include "GLFW/glfw3.h"

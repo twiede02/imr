@@ -4,7 +4,7 @@
 namespace imr {
 
 struct FpsCounter::Impl {
-    uint64_t last_epoch = shd_get_time_nano();
+    uint64_t last_epoch = imr_get_time_nano();
     int frames_since_last_epoch = 0;
 
     int fps;
@@ -18,7 +18,7 @@ FpsCounter::FpsCounter() {
 FpsCounter::~FpsCounter() = default;
 
 void FpsCounter::tick() {
-    uint64_t now = shd_get_time_nano();
+    uint64_t now = imr_get_time_nano();
     uint64_t delta = now - _impl->last_epoch;
     if (delta > 1000000000 /* 1 second */) {
         _impl->last_epoch = now;
