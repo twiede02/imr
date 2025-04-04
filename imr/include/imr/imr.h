@@ -30,6 +30,7 @@ namespace imr {
 
     struct Device {
         Device(Context&, std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
+        Device(Context&, vkb::PhysicalDevice);
         Device(Device&) = delete;
         ~Device();
 

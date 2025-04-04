@@ -2,10 +2,8 @@
 
 namespace imr {
 
-Device::Device(Context& context,
-               std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom) : context(context) {
-    _impl = std::make_unique<Impl>();
 
+Device::Device(Context& context, std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom) : Device(context, ([&]() -> vkb::PhysicalDevice {
     auto device_selector = vkb::PhysicalDeviceSelector(context._impl->vkb_instance)
         .add_required_extension("VK_KHR_maintenance2")
         .add_required_extension("VK_KHR_create_renderpass2")
@@ -30,11 +28,18 @@ Device::Device(Context& context,
 
     device_custom(device_selector);
 
-    if (auto built = device_selector.select(); built.has_value())
-    {
-        _impl->vkb_physical_device = built.value();
-        physical_device = _impl->vkb_physical_device.physical_device;
-    }
+    auto selected = device_selector.select();
+    if (selected.has_value())
+        return selected.value();
+    else
+        throw std::exception();
+})()) {}
+
+Device::Device(imr::Context& context, vkb::PhysicalDevice physical_device) : context(context), physical_device(physical_device) {
+    _impl = std::make_unique<Impl>();
+
+    _impl->vkb_physical_device = physical_device;
+    this->physical_device = _impl->vkb_physical_device.physical_device;
 
     if (auto built = vkb::DeviceBuilder(_impl->vkb_physical_device)
             .build(); built.has_value())
