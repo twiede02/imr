@@ -83,6 +83,7 @@ namespace imr {
         ~Swapchain();
 
         VkFormat format() const;
+        int maxFps = 999;
 
         struct Frame {
             void presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem);

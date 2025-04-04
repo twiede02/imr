@@ -24,7 +24,7 @@ void FpsCounter::tick() {
         _impl->last_epoch = now;
         if (_impl->frames_since_last_epoch > 0) {
             _impl->fps = _impl->frames_since_last_epoch;
-            _impl->avg_frametime = (delta / 1000000000.0f /* scale to ms */) / _impl->frames_since_last_epoch;
+            _impl->avg_frametime = (delta / 1000000000.0f /* scale to seconds */) / _impl->frames_since_last_epoch;
         }
         _impl->frames_since_last_epoch = 0;
     }

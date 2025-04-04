@@ -1,10 +1,13 @@
 #include "imr_private.h"
+#include "imr/util.h"
 
 #include "VkBootstrap.h"
 
 #include <functional>
 #include <vector>
 #include <algorithm>
+#include <thread>
+#include <chrono>
 
 namespace imr {
 
@@ -21,6 +24,8 @@ struct Swapchain::Impl {
 
     VkSurfaceKHR surface;
     size_t frame_counter = 0;
+
+    uint64_t last_present = 0;
 
     vkb::Swapchain swapchain;
     std::vector<std::unique_ptr<SwapchainSlot>> slots;
@@ -495,6 +500,21 @@ void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
     auto& slot = _impl->slot;
     auto& swapchain = slot.swapchain;
     auto& context = _impl->context;
+
+    uint64_t now = imr_get_time_nano();
+    uint64_t delta = now - swapchain._impl->last_present;
+    int64_t delta_us = (int64_t)(delta / 1000);
+
+    int64_t min_delta = int64_t(1000000.0 / swapchain.maxFps);
+    //printf("delta: %zu us, min_delta = %zu \n", delta_us, min_delta);
+    int64_t sleep_time = min_delta - delta_us;
+    if (sleep_time > 0) {
+        //printf("we're too fast. throttling by: %zu us\n", sleep_time);
+        std::this_thread::sleep_for(std::chrono::microseconds(sleep_time));
+    }
+
+    swapchain._impl->last_present = now;
+
     //printf("Presenting in slot: %d\n", slot.image_index);
 
     std::vector<VkSemaphore> semaphores;
