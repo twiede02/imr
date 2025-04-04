@@ -3,13 +3,13 @@
 namespace imr {
 
 struct Buffer::Impl {
-    Context& context;
+    Device& device;
     VmaAllocation allocation;
     VmaAllocationInfo allocation_info;
 };
 
-Buffer::Buffer(imr::Context& context, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_property) : size(size) {
-    _impl = std::make_unique<Impl>(context);
+Buffer::Buffer(imr::Device& device, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_property) : size(size) {
+    _impl = std::make_unique<Impl>(device);
     VkBufferCreateInfo buffer_ci = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .flags = 0,
@@ -22,8 +22,8 @@ Buffer::Buffer(imr::Context& context, size_t size, VkBufferUsageFlags usage, VkM
         .usage = VMA_MEMORY_USAGE_UNKNOWN,
         .requiredFlags = memory_property
     };
-    CHECK_VK(vmaCreateBuffer(context._impl->allocator, &buffer_ci, &vma_aci, &handle, &_impl->allocation, &_impl->allocation_info), throw std::exception());
-    device_address = vkGetBufferDeviceAddress(context.device, tmp((VkBufferDeviceAddressInfo) {
+    CHECK_VK(vmaCreateBuffer(device._impl->allocator, &buffer_ci, &vma_aci, &handle, &_impl->allocation, &_impl->allocation_info), throw std::exception());
+    device_address = vkGetBufferDeviceAddress(device.device, tmp((VkBufferDeviceAddressInfo) {
         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
         .buffer = handle,
     }));
@@ -32,7 +32,7 @@ Buffer::Buffer(imr::Context& context, size_t size, VkBufferUsageFlags usage, VkM
 }
 
 Buffer::~Buffer() {
-    vmaDestroyBuffer(_impl->context._impl->allocator, handle, _impl->allocation);
+    vmaDestroyBuffer(_impl->device._impl->allocator, handle, _impl->allocation);
 }
 
 }

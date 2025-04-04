@@ -8,19 +8,20 @@ int main() {
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
 
     imr::Context context;
-    imr::Swapchain swapchain(context, window);
+    imr::Device device(context);
+    imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
 
-    auto& vk = context.dispatch_tables.device;
+    auto& vk = device.dispatch;
 
     while (!glfwWindowShouldClose(window)) {
         swapchain.beginFrame([&](auto& frame) {
             auto& image = frame.swapchain_image;
 
             VkCommandBuffer cmdbuf;
-            vkAllocateCommandBuffers(context.device, tmp((VkCommandBufferAllocateInfo) {
+            vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                .commandPool = context.pool,
+                .commandPool = device.pool,
                 .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
                 .commandBufferCount = 1,
             }), &cmdbuf);
@@ -31,7 +32,7 @@ int main() {
             }));
 
             VkSemaphore sem;
-            CHECK_VK(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
+            CHECK_VK(vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
                 .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
             }), nullptr, &sem), abort());
 
@@ -93,13 +94,13 @@ int main() {
             }));
 
             VkFence fence;
-            vkCreateFence(context.device, tmp((VkFenceCreateInfo) {
+            vkCreateFence(device.device, tmp((VkFenceCreateInfo) {
                 .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
                 .flags = 0,
             }), nullptr, &fence);
 
             vkEndCommandBuffer(cmdbuf);
-            vkQueueSubmit(context.main_queue, 1, tmp((VkSubmitInfo) {
+            vkQueueSubmit(device.main_queue, 1, tmp((VkSubmitInfo) {
                 .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                 .waitSemaphoreCount = 1,
                 .pWaitSemaphores = &frame.swapchain_image_available,
@@ -112,11 +113,11 @@ int main() {
 
             //printf("Frame submitted with fence = %llx\n", fence);
 
-            frame.add_to_delete_queue(fence, [=, &context]() {
+            frame.add_to_delete_queue(fence, [=, &device]() {
                 //vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);
-                vkDestroyFence(context.device, fence, nullptr);
-                vkDestroySemaphore(context.device, sem, nullptr);
-                vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
+                vkDestroyFence(device.device, fence, nullptr);
+                vkDestroySemaphore(device.device, sem, nullptr);
+                vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
             });
             frame.present(sem);
         });
@@ -126,7 +127,7 @@ int main() {
         glfwPollEvents();
     }
 
-    vkDeviceWaitIdle(context.device);
+    vkDeviceWaitIdle(device.device);
 
     return 0;
 }

@@ -17,9 +17,9 @@ struct SwapchainSlot;
 
 struct Swapchain::Impl {
     Swapchain& parent;
-    Context& context;
+    Device& device;
     GLFWwindow* window = nullptr;
-    Impl(Swapchain& parent, Context&, GLFWwindow*);
+    Impl(Swapchain& parent, Device&, GLFWwindow*);
     ~Impl();
 
     VkSurfaceKHR surface;
@@ -37,10 +37,10 @@ struct Swapchain::Impl {
 struct SwapchainSlot {
     Swapchain& swapchain;
     SwapchainSlot(Swapchain& s) : swapchain(s) {
-        auto& context = s._impl->context;
-        auto& vk = context.dispatch_tables.device;
+        auto& device = s._impl->device;
+        auto& vk = device.dispatch;
 
-        CHECK_VK_THROW(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
+        CHECK_VK_THROW(vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         }), nullptr, &copy_done));
 
@@ -65,29 +65,29 @@ struct SwapchainSlot {
 };
 
 SwapchainSlot::~SwapchainSlot() {
-    auto& context = swapchain._impl->context;
+    auto& device = swapchain._impl->device;
     if (wait_for_previous_present) {
-        CHECK_VK_THROW(vkWaitForFences(context.device, 1, &wait_for_previous_present, true, UINT64_MAX));
-        vkDestroyFence(context.device, wait_for_previous_present, nullptr);
+        CHECK_VK_THROW(vkWaitForFences(device.device, 1, &wait_for_previous_present, true, UINT64_MAX));
+        vkDestroyFence(device.device, wait_for_previous_present, nullptr);
         wait_for_previous_present = nullptr;
     }
-    vkDestroySemaphore(context.device, copy_done, nullptr);
+    vkDestroySemaphore(device.device, copy_done, nullptr);
     if (wait_for_previous_present)
-        vkDestroyFence(context.device, wait_for_previous_present, nullptr);
+        vkDestroyFence(device.device, wait_for_previous_present, nullptr);
 }
 
 struct Swapchain::Frame::Impl {
-    Context& context;
+    Device& device;
     SwapchainSlot& slot;
 
     std::vector<VkFence> cleanup_fences;
     std::vector<std::function<void(void)>> cleanup_queue;
 };
 
-Swapchain::Swapchain(Context& context, GLFWwindow* window) {
-    auto& vk = context.dispatch_tables.device;
+Swapchain::Swapchain(Device& device, GLFWwindow* window) {
+    auto& vk = device.dispatch;
 
-    _impl = std::make_unique<Swapchain::Impl>(*this, context, window);
+    _impl = std::make_unique<Swapchain::Impl>(*this, device, window);
     _impl->build_swapchain();
 }
 
@@ -95,17 +95,17 @@ VkFormat Swapchain::format() const {
     return _impl->swapchain.image_format;
 }
 
-Swapchain::Impl::Impl(Swapchain& parent, Context& context, GLFWwindow* window) : parent(parent), context(context), window(window) {
-    CHECK_VK_THROW(glfwCreateWindowSurface(context.instance, window, nullptr, &surface));
+Swapchain::Impl::Impl(Swapchain& parent, Device& device, GLFWwindow* window) : parent(parent), device(device), window(window) {
+    CHECK_VK_THROW(glfwCreateWindowSurface(device.context.instance, window, nullptr, &surface));
 }
 
 void Swapchain::Impl::build_swapchain() {
     uint32_t surface_formats_count;
-    CHECK_VK_THROW(vkGetPhysicalDeviceSurfaceFormatsKHR(context.physical_device, surface, &surface_formats_count, nullptr));
+    CHECK_VK_THROW(vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device, surface, &surface_formats_count, nullptr));
 
     std::vector<VkSurfaceFormatKHR> formats;
     formats.resize(surface_formats_count);
-    CHECK_VK_THROW(vkGetPhysicalDeviceSurfaceFormatsKHR(context.physical_device, surface, &surface_formats_count, formats.data()));
+    CHECK_VK_THROW(vkGetPhysicalDeviceSurfaceFormatsKHR(device.physical_device, surface, &surface_formats_count, formats.data()));
 
     std::optional<VkSurfaceFormatKHR> preferred;
     for (auto format : formats) {
@@ -122,7 +122,7 @@ void Swapchain::Impl::build_swapchain() {
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
 
-    auto builder = vkb::SwapchainBuilder(context.physical_device, context.device, surface);
+    auto builder = vkb::SwapchainBuilder(device.physical_device, device.device, surface);
     builder.add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
     builder.set_desired_extent(width, height);
     builder.set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR);
@@ -147,18 +147,18 @@ void Swapchain::Impl::destroy_swapchain() {
 }
 
 Swapchain::Impl::~Impl() {
-    vkDestroySurfaceKHR(context.instance, surface, nullptr);
+    vkDestroySurfaceKHR(device.context.dispatch.instance, surface, nullptr);
 }
 
 /// Acquires the next image
 static std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(Swapchain::Impl* _impl) {
-    auto& context = _impl->context;
-    auto& vk = context.dispatch_tables.device;
+    auto& device = _impl->device;
+    auto& vk = device.dispatch;
 
     uint32_t image_index;
 
     VkSemaphore image_acquired_semaphore;
-    CHECK_VK_THROW(vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
+    CHECK_VK_THROW(vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
     }), nullptr, &image_acquired_semaphore));
 
@@ -170,18 +170,18 @@ static std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(
     }));
 
     VkFence fence;
-    CHECK_VK_THROW(vkCreateFence(context.device, tmp((VkFenceCreateInfo) {
+    CHECK_VK_THROW(vkCreateFence(device.device, tmp((VkFenceCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
     }), nullptr, &fence));
 
-    VkResult acquire_result = context.dispatch_tables.device.acquireNextImageKHR(_impl->swapchain, UINT64_MAX, image_acquired_semaphore, fence, &image_index);
+    VkResult acquire_result = device.dispatch.acquireNextImageKHR(_impl->swapchain, UINT64_MAX, image_acquired_semaphore, fence, &image_index);
     switch (acquire_result) {
         case VK_SUCCESS:
         case VK_SUBOPTIMAL_KHR: break;
         case VK_ERROR_OUT_OF_DATE_KHR: {
             fprintf(stderr, "Acquire failed. We need to resize!\n");
-            vkDestroySemaphore(context.device, image_acquired_semaphore, nullptr);
-            vkDestroyFence(context.device, fence, nullptr);
+            vkDestroySemaphore(device.device, image_acquired_semaphore, nullptr);
+            vkDestroyFence(device.device, fence, nullptr);
             return std::nullopt;
         }
         default:
@@ -202,8 +202,8 @@ static std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(
     // First make sure the _previous_ present is finished.
     // We could also set and wait on an acquire fence, but the validation layers are apparently not convinced this is sufficiently safe...
     if (prev_fence) {
-        CHECK_VK_THROW(vkWaitForFences(context.device, 1, &prev_fence, true, UINT64_MAX));
-        vkDestroyFence(context.device, prev_fence, nullptr);
+        CHECK_VK_THROW(vkWaitForFences(device.device, 1, &prev_fence, true, UINT64_MAX));
+        vkDestroyFence(device.device, prev_fence, nullptr);
     }
     //printf("Waited for %llx\n", (uint64_t) slot.wait_for_previous_present);
 
@@ -224,7 +224,7 @@ Swapchain::Frame::Frame(Impl&& impl) {
 }
 
 void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
-    auto& context = _impl->context;
+    auto& device = _impl->device;
     while (true) {
         auto result = nextSwapchainSlot(&*_impl);
         if (!result) {
@@ -236,14 +236,14 @@ void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
         }
         auto [slot, acquired] = *result;
         slot.frame.reset();
-        slot.frame = std::make_unique<Frame>(std::move(Frame::Impl(context, slot)));
+        slot.frame = std::make_unique<Frame>(std::move(Frame::Impl(device, slot)));
         slot.frame->swapchain_image_available = acquired;
         slot.frame->id = _impl->frame_counter++;
         slot.frame->width = _impl->swapchain.extent.width;
         slot.frame->height = _impl->swapchain.extent.height;
         assert(acquired);
-        slot.frame->_impl->cleanup_queue.emplace_back([=, &context]() {
-            vkDestroySemaphore(context.device, acquired, nullptr);
+        slot.frame->_impl->cleanup_queue.emplace_back([=, &device]() {
+            vkDestroySemaphore(device.device, acquired, nullptr);
         });
 
         //printf("Preparing frame: %d\n", slot.frame->id);
@@ -259,7 +259,7 @@ Swapchain::Frame::~Frame() {
     if (!_impl->cleanup_fences.empty()) {
         for (auto fence : _impl->cleanup_fences) {
             //printf("Waited on fence = %llx\n", fence);
-            CHECK_VK_THROW(vkWaitForFences(_impl->context.device, 1, &fence, true, UINT64_MAX));
+            CHECK_VK_THROW(vkWaitForFences(_impl->device.device, 1, &fence, true, UINT64_MAX));
         }
         _impl->cleanup_fences.clear();
     }
@@ -275,8 +275,8 @@ Swapchain::Frame::~Frame() {
 void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem) {
     auto& slot = _impl->slot;
     auto& swapchain = slot.swapchain;
-    auto& context = _impl->context;
-    auto& vk = context.dispatch_tables.device;
+    auto& device = _impl->device;
+    auto& vk = device.dispatch;
 
     assert(signal_when_reusable != VK_NULL_HANDLE);
 
@@ -286,9 +286,9 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_re
         semaphores.push_back(*sem);
 
     VkCommandBuffer cmdbuf;
-    CHECK_VK_THROW(vkAllocateCommandBuffers(context.device, tmp((VkCommandBufferAllocateInfo) {
+    CHECK_VK_THROW(vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = context.pool,
+        .commandPool = device.pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
     }), &cmdbuf));
@@ -356,7 +356,7 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_re
         stage_flags.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
     vkEndCommandBuffer(cmdbuf);
-    vkQueueSubmit(context.main_queue, 1, tmp((VkSubmitInfo) {
+    vkQueueSubmit(device.main_queue, 1, tmp((VkSubmitInfo) {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = static_cast<uint32_t>(semaphores.size()),
         .pWaitSemaphores = semaphores.data(),
@@ -367,8 +367,8 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_re
         .pSignalSemaphores = &slot.copy_done,
     }), signal_when_reusable);
 
-    add_to_delete_queue(std::nullopt, [=, &context]() {
-        vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
+    add_to_delete_queue(std::nullopt, [=, &device]() {
+        vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
     });
 
     present(slot.copy_done);
@@ -377,8 +377,8 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_re
 void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
     auto& slot = _impl->slot;
     auto& swapchain = slot.swapchain;
-    auto& context = _impl->context;
-    auto& vk = context.dispatch_tables.device;
+    auto& device = _impl->device;
+    auto& vk = device.dispatch;
 
     std::vector<VkSemaphore> semaphores;
     semaphores.push_back(swapchain_image_available);
@@ -389,9 +389,9 @@ void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusa
     assert(signal_when_reusable != VK_NULL_HANDLE);
 
     VkCommandBuffer cmdbuf;
-    vkAllocateCommandBuffers(context.device, tmp((VkCommandBufferAllocateInfo) {
+    vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = context.pool,
+        .commandPool = device.pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
     }), &cmdbuf);
@@ -478,7 +478,7 @@ void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusa
         stage_flags.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
     vkEndCommandBuffer(cmdbuf);
-    vkQueueSubmit(context.main_queue, 1, tmp((VkSubmitInfo) {
+    vkQueueSubmit(device.main_queue, 1, tmp((VkSubmitInfo) {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = static_cast<uint32_t>(semaphores.size()),
         .pWaitSemaphores = semaphores.data(),
@@ -494,8 +494,8 @@ void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusa
     semaphores.clear();
     semaphores.emplace_back(slot.copy_done);
 
-    add_to_delete_queue(std::nullopt, [=, &context]() {
-        vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
+    add_to_delete_queue(std::nullopt, [=, &device]() {
+        vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
     });
 
     present(slot.copy_done);
@@ -504,7 +504,7 @@ void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusa
 void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
     auto& slot = _impl->slot;
     auto& swapchain = slot.swapchain;
-    auto& context = _impl->context;
+    auto& device = _impl->device;
 
     uint64_t now = imr_get_time_nano();
     uint64_t delta = now - swapchain._impl->last_present;
@@ -526,7 +526,7 @@ void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
     if (sem)
         semaphores.push_back(*sem);
 
-    VkResult present_result = vkQueuePresentKHR(context.main_queue, tmp((VkPresentInfoKHR) {
+    VkResult present_result = vkQueuePresentKHR(device.main_queue, tmp((VkPresentInfoKHR) {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .waitSemaphoreCount = static_cast<uint32_t>(semaphores.size()),
         .pWaitSemaphores = semaphores.data(),
@@ -547,8 +547,8 @@ void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
 }
 
 void Swapchain::drain() {
-    auto& context = _impl->context;
-    vkDeviceWaitIdle(context.device);
+    auto& device = _impl->device;
+    vkDeviceWaitIdle(device.device);
 
     for (auto& slot : _impl->slots)
         slot->frame.reset();
@@ -557,9 +557,6 @@ void Swapchain::drain() {
 
 Swapchain::~Swapchain() {
     drain();
-
-    auto& context = _impl->context;
-    vkDeviceWaitIdle(context.device);
 
     _impl->destroy_swapchain();
     _impl.reset();

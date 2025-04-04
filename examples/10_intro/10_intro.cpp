@@ -8,18 +8,19 @@ int main() {
     glfwGetFramebufferSize(window, &width, &height);
 
     imr::Context context;
-    imr::Swapchain swapchain(context, window);
+    imr::Device device(context);
+    imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
 
     // CPU-side staging buffer
     uint8_t* framebuffer = reinterpret_cast<uint8_t*>(malloc(width * height * 4));
 
-    std::unique_ptr<imr::Buffer> buffer = std::make_unique<imr::Buffer>(context, width * height * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    std::unique_ptr<imr::Buffer> buffer = std::make_unique<imr::Buffer>(device, width * height * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     uint8_t* mapped_buffer;
-    CHECK_VK(vkMapMemory(context.device, buffer->memory, buffer->memory_offset, buffer->size, 0, (void**) &mapped_buffer), abort());
+    CHECK_VK(vkMapMemory(device.device, buffer->memory, buffer->memory_offset, buffer->size, 0, (void**) &mapped_buffer), abort());
 
     VkFence fence;
-    vkCreateFence(context.device, tmp((VkFenceCreateInfo) {
+    vkCreateFence(device.device, tmp((VkFenceCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     }), nullptr, &fence);
@@ -37,13 +38,13 @@ int main() {
                 framebuffer = reinterpret_cast<uint8_t*>(malloc(width * height * 4));
 
                 // unmap the old gpu buffer and reallocate it
-                vkUnmapMemory(context.device, buffer->memory);
-                buffer = std::make_unique<imr::Buffer>(context, width * height * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-                CHECK_VK(vkMapMemory(context.device, buffer->memory, buffer->memory_offset, buffer->size, 0, (void**) &mapped_buffer), abort());
+                vkUnmapMemory(device.device, buffer->memory);
+                buffer = std::make_unique<imr::Buffer>(device, width * height * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+                CHECK_VK(vkMapMemory(device.device, buffer->memory, buffer->memory_offset, buffer->size, 0, (void**) &mapped_buffer), abort());
             }
 
-            vkWaitForFences(context.device, 1, &fence, VK_TRUE, UINT64_MAX);
-            CHECK_VK(vkResetFences(context.device, 1, &fence), abort());
+            vkWaitForFences(device.device, 1, &fence, VK_TRUE, UINT64_MAX);
+            CHECK_VK(vkResetFences(device.device, 1, &fence), abort());
 
             for (size_t i = 0 ; i < width; i++) {
                 for (size_t j = 0; j < height; j++) {
@@ -61,10 +62,10 @@ int main() {
         glfwPollEvents();
     }
 
-    vkDeviceWaitIdle(context.device);
+    vkDeviceWaitIdle(device.device);
     free(framebuffer);
 
-    vkDestroyFence(context.device, fence, nullptr);
+    vkDestroyFence(device.device, fence, nullptr);
 
     return 0;
 }

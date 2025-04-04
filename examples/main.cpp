@@ -22,15 +22,16 @@ struct push_constants {
 
 int main() {
     imr::Context context;
-    auto& vk = context.dispatch_tables.device;
+    imr::Device device(context);
+    auto& vk = device.dispatch;
 
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
-    imr::Swapchain swapchain(context, window);
+    imr::Swapchain swapchain(device, window);
 
     VkFence fence;
-    vkCreateFence(context.device, tmp((VkFenceCreateInfo) {
+    vkCreateFence(device.device, tmp((VkFenceCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     }), nullptr, &fence);
@@ -63,7 +64,7 @@ int main() {
     }), nullptr, &set0_layout), abort());
 
     VkPipelineLayout layout;
-    CHECK_VK(vkCreatePipelineLayout(context.device, tmp((VkPipelineLayoutCreateInfo) {
+    CHECK_VK(vkCreatePipelineLayout(device.device, tmp((VkPipelineLayoutCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = 1,
         .pSetLayouts = &set0_layout,
@@ -75,7 +76,7 @@ int main() {
     }), nullptr, &layout), abort());
 
     VkPipeline pipeline;
-    CHECK_VK(vkCreateComputePipelines(context.device, VK_NULL_HANDLE, 1, tmp((VkComputePipelineCreateInfo) {
+    CHECK_VK(vkCreateComputePipelines(device.device, VK_NULL_HANDLE, 1, tmp((VkComputePipelineCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
         .flags = 0,
         .stage = {
@@ -103,10 +104,10 @@ int main() {
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
     VkExtent3D extents = { static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
-    auto image = new imr::Image (context, VK_IMAGE_TYPE_2D, extents, VK_FORMAT_R8G8B8A8_UNORM, (VkImageUsageFlagBits) (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT));
+    auto image = new imr::Image (device, VK_IMAGE_TYPE_2D, extents, VK_FORMAT_R8G8B8A8_UNORM, (VkImageUsageFlagBits) (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT));
 
     VkImageView view;
-    vkCreateImageView(context.device, tmp((VkImageViewCreateInfo) {
+    vkCreateImageView(device.device, tmp((VkImageViewCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = image->handle,
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
@@ -124,13 +125,13 @@ int main() {
         fps_counter.updateGlfwWindowTitle(window);
 
         swapchain.beginFrame([&](auto& frame) {
-            vkWaitForFences(context.device, 1, &fence, VK_TRUE, UINT64_MAX);
-            vkResetFences(context.device, 1, &fence);
+            vkWaitForFences(device.device, 1, &fence, VK_TRUE, UINT64_MAX);
+            vkResetFences(device.device, 1, &fence);
 
             VkCommandBuffer cmdbuf;
-            vkAllocateCommandBuffers(context.device, tmp((VkCommandBufferAllocateInfo) {
+            vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                .commandPool = context.pool,
+                .commandPool = device.pool,
                 .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
                 .commandBufferCount = 1,
             }), &cmdbuf);
@@ -141,7 +142,7 @@ int main() {
             }));
 
             VkSemaphore sem;
-            vkCreateSemaphore(context.device, tmp((VkSemaphoreCreateInfo) {
+            vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
                 .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
             }), nullptr, &sem);
             vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
@@ -195,14 +196,14 @@ int main() {
             }));
 
             VkDescriptorSet set;
-            vkAllocateDescriptorSets(context.device, tmp((VkDescriptorSetAllocateInfo) {
+            vkAllocateDescriptorSets(device.device, tmp((VkDescriptorSetAllocateInfo) {
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                 .descriptorPool = pool,
                 .descriptorSetCount = 1,
                 .pSetLayouts = &set0_layout,
             }), &set);
 
-            vkUpdateDescriptorSets(context.device, 1, tmp((VkWriteDescriptorSet) {
+            vkUpdateDescriptorSets(device.device, 1, tmp((VkWriteDescriptorSet) {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet = set,
                 .descriptorCount = 1,
@@ -285,7 +286,7 @@ int main() {
             }));
 
             vkEndCommandBuffer(cmdbuf);
-            vk.queueSubmit(context.main_queue, 1, tmp((VkSubmitInfo) {
+            vk.queueSubmit(device.main_queue, 1, tmp((VkSubmitInfo) {
                 .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                 .waitSemaphoreCount = 0,
                 .commandBufferCount = 1,
@@ -294,10 +295,10 @@ int main() {
                 .pSignalSemaphores = &sem,
             }), VK_NULL_HANDLE);
 
-            frame.add_to_delete_queue(std::nullopt, [=, &context]() {
-                vkDestroySemaphore(context.device, sem, nullptr);
-                vkFreeDescriptorSets(context.device, pool, 1, &set);
-                vkFreeCommandBuffers(context.device, context.pool, 1, &cmdbuf);
+            frame.add_to_delete_queue(std::nullopt, [=, &device]() {
+                vkDestroySemaphore(device.device, sem, nullptr);
+                vkFreeDescriptorSets(device.device, pool, 1, &set);
+                vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
             });
             frame.presentFromImage(image->handle, fence, { sem }, VK_IMAGE_LAYOUT_GENERAL, std::make_optional<VkExtent2D>(image->size.width, image->size.height));
         });
@@ -307,15 +308,15 @@ int main() {
 
     swapchain.drain();
 
-    vkDestroyPipeline(context.device, pipeline, nullptr);
-    vkDestroyShaderModule(context.device, module, nullptr);
-    vkDestroyDescriptorPool(context.device, pool, nullptr);
-    vkDestroyPipelineLayout(context.device, layout, nullptr);
-    vkDestroyDescriptorSetLayout(context.device, set0_layout, nullptr);
+    vkDestroyPipeline(device.device, pipeline, nullptr);
+    vkDestroyShaderModule(device.device, module, nullptr);
+    vkDestroyDescriptorPool(device.device, pool, nullptr);
+    vkDestroyPipelineLayout(device.device, layout, nullptr);
+    vkDestroyDescriptorSetLayout(device.device, set0_layout, nullptr);
 
     delete image;
-    vkDestroyImageView(context.device, view, nullptr);
-    vkDestroyFence(context.device, fence, nullptr);
+    vkDestroyImageView(device.device, view, nullptr);
+    vkDestroyFence(device.device, fence, nullptr);
 
     return 0;
 }

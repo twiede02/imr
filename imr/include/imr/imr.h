@@ -17,12 +17,24 @@ inline auto tmp(auto&& t) { return &t; }
 
 namespace imr {
     struct Context {
-        Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom = [](auto&) {},
-                std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
+        Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom = [](auto&) {});
         Context(Context&) = delete;
         ~Context();
 
         VkInstance instance;
+        vkb::InstanceDispatchTable dispatch;
+
+        class Impl;
+        std::unique_ptr<Impl> _impl;
+    };
+
+    struct Device {
+        Device(Context&, std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
+        Device(Device&) = delete;
+        ~Device();
+
+        Context& context;
+
         VkPhysicalDevice physical_device;
         VkDevice device;
 
@@ -31,17 +43,14 @@ namespace imr {
 
         VkCommandPool pool;
 
-        struct {
-            vkb::InstanceDispatchTable instance;
-            vkb::DispatchTable device;
-        } dispatch_tables;
+        vkb::DispatchTable dispatch;
 
         class Impl;
         std::unique_ptr<Impl> _impl;
     };
 
     struct Buffer {
-        Buffer(Context&, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_property = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        Buffer(Device&, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_property = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
         Buffer(Buffer&) = delete;
         ~Buffer();
 
@@ -65,7 +74,7 @@ namespace imr {
 
         VkImage handle;
 
-        Image(Context&, VkImageType dim, VkExtent3D size, VkFormat format, VkImageUsageFlagBits usage);
+        Image(Device&, VkImageType dim, VkExtent3D size, VkFormat format, VkImageUsageFlagBits usage);
         Image(Image&) = delete;
         ~Image();
 
@@ -79,7 +88,7 @@ namespace imr {
     };
 
     struct Swapchain {
-        Swapchain(Context&, GLFWwindow* window);
+        Swapchain(Device&, GLFWwindow* window);
         ~Swapchain();
 
         VkFormat format() const;

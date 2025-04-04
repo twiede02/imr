@@ -2,8 +2,7 @@
 
 namespace imr {
 
-Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom,
-                 std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom) {
+Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom) {
     _impl = std::make_unique<Impl>();
 
     auto instance_builder = vkb::InstanceBuilder()
@@ -21,7 +20,7 @@ Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom,
     {
         _impl->vkb_instance = built.value();
         instance = _impl->vkb_instance.instance;
-        dispatch_tables.instance = _impl->vkb_instance.make_table();
+        dispatch = _impl->vkb_instance.make_table();
     } else { throw std::exception(); }
 
     auto device_selector = vkb::PhysicalDeviceSelector(_impl->vkb_instance)
@@ -45,45 +44,9 @@ Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom,
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR,
             .synchronization2 = true,
         });
-
-    device_custom(device_selector);
-
-    if (auto built = device_selector.select(); built.has_value())
-    {
-        _impl->vkb_physical_device = built.value();
-        physical_device = _impl->vkb_physical_device.physical_device;
-    }
-
-    if (auto built = vkb::DeviceBuilder(_impl->vkb_physical_device)
-        .build(); built.has_value())
-    {
-        _impl->vkb_device = built.value();
-        device = _impl->vkb_device;
-        dispatch_tables.device = _impl->vkb_device.make_table();
-    }
-
-    main_queue_idx = _impl->vkb_device.get_queue_index(vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)).value();
-    main_queue = _impl->vkb_device.get_queue(vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)).value();
-
-    CHECK_VK(vkCreateCommandPool(device, tmp((VkCommandPoolCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .queueFamilyIndex = main_queue_idx,
-    }), nullptr, &pool), throw std::exception());
-
-    CHECK_VK(vmaCreateAllocator(tmp((VmaAllocatorCreateInfo) {
-        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
-        .physicalDevice = physical_device,
-        .device = device,
-        .instance = instance,
-    }), &_impl->allocator), throw std::exception());
 }
 
 Context::~Context() {
-    vkDeviceWaitIdle(device);
-
-    vmaDestroyAllocator(_impl->allocator);
-    vkDestroyCommandPool(device, pool, nullptr);
-    vkb::destroy_device(_impl->vkb_device);
     vkb::destroy_instance(_impl->vkb_instance);
     _impl.reset();
 }

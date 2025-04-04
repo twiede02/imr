@@ -3,12 +3,12 @@
 namespace imr {
 
 struct Image::Impl {
-    Context& context;
+    Device& device;
     VmaAllocation vma_allocation;
 };
 
-Image::Image(Context& context, VkImageType dim, VkExtent3D size, VkFormat format, VkImageUsageFlagBits usage) : dim(dim), size(size), format(format), usage(usage) {
-    _impl = std::make_unique<Impl>(context);
+Image::Image(Device& device, VkImageType dim, VkExtent3D size, VkFormat format, VkImageUsageFlagBits usage) : dim(dim), size(size), format(format), usage(usage) {
+    _impl = std::make_unique<Impl>(device);
     VkImageCreateInfo image_create_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = dim,
@@ -26,11 +26,11 @@ Image::Image(Context& context, VkImageType dim, VkExtent3D size, VkFormat format
         .flags = 0,
         // .usage = VMA_MEMORY_USAGE_AUTO,
     };
-    vmaCreateImage(context._impl->allocator, &image_create_info, &alloc_info, &handle, &_impl->vma_allocation, nullptr);
+    vmaCreateImage(device._impl->allocator, &image_create_info, &alloc_info, &handle, &_impl->vma_allocation, nullptr);
 }
 
 Image::~Image() {
-    vmaDestroyImage(_impl->context._impl->allocator, handle, _impl->vma_allocation);
+    vmaDestroyImage(_impl->device._impl->allocator, handle, _impl->vma_allocation);
 }
 
 }

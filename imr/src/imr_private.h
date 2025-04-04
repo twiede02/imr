@@ -6,6 +6,9 @@ namespace imr {
 
 struct Context::Impl {
     vkb::Instance vkb_instance;
+};
+
+struct Device::Impl {
     vkb::PhysicalDevice vkb_physical_device;
     vkb::Device vkb_device;
 
