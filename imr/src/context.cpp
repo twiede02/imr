@@ -3,8 +3,6 @@
 namespace imr {
 
 Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom) {
-    _impl = std::make_unique<Impl>();
-
     auto instance_builder = vkb::InstanceBuilder()
         .use_default_debug_messenger()
         .request_validation_layers()
@@ -18,12 +16,11 @@ Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom) {
     if (auto built = instance_builder
         .build(); built.has_value())
     {
-        _impl->vkb_instance = built.value();
-        instance = _impl->vkb_instance.instance;
-        dispatch = _impl->vkb_instance.make_table();
+        instance = built.value();
+        dispatch = instance.make_table();
     } else { throw std::exception(); }
 
-    auto device_selector = vkb::PhysicalDeviceSelector(_impl->vkb_instance)
+    auto device_selector = vkb::PhysicalDeviceSelector(instance)
         .add_required_extension("VK_KHR_maintenance2")
         .add_required_extension("VK_KHR_create_renderpass2")
         .add_required_extension("VK_KHR_dynamic_rendering")
@@ -47,8 +44,7 @@ Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom) {
 }
 
 Context::~Context() {
-    vkb::destroy_instance(_impl->vkb_instance);
-    _impl.reset();
+    vkb::destroy_instance(instance);
 }
 
 }

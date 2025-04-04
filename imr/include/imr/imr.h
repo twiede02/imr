@@ -21,11 +21,8 @@ namespace imr {
         Context(Context&) = delete;
         ~Context();
 
-        VkInstance instance;
+        vkb::Instance instance;
         vkb::InstanceDispatchTable dispatch;
-
-        class Impl;
-        std::unique_ptr<Impl> _impl;
     };
 
     struct Device {
@@ -36,8 +33,8 @@ namespace imr {
 
         Context& context;
 
-        VkPhysicalDevice physical_device;
-        VkDevice device;
+        vkb::PhysicalDevice physical_device;
+        vkb::Device device;
 
         VkQueue main_queue;
         uint32_t main_queue_idx;

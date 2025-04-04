@@ -2,9 +2,8 @@
 
 namespace imr {
 
-
 Device::Device(Context& context, std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom) : Device(context, ([&]() -> vkb::PhysicalDevice {
-    auto device_selector = vkb::PhysicalDeviceSelector(context._impl->vkb_instance)
+    auto device_selector = vkb::PhysicalDeviceSelector(context.instance)
         .add_required_extension("VK_KHR_maintenance2")
         .add_required_extension("VK_KHR_create_renderpass2")
         .add_required_extension("VK_KHR_dynamic_rendering")
@@ -38,19 +37,15 @@ Device::Device(Context& context, std::function<void(vkb::PhysicalDeviceSelector&
 Device::Device(imr::Context& context, vkb::PhysicalDevice physical_device) : context(context), physical_device(physical_device) {
     _impl = std::make_unique<Impl>();
 
-    _impl->vkb_physical_device = physical_device;
-    this->physical_device = _impl->vkb_physical_device.physical_device;
-
-    if (auto built = vkb::DeviceBuilder(_impl->vkb_physical_device)
+    if (auto built = vkb::DeviceBuilder(physical_device)
             .build(); built.has_value())
     {
-        _impl->vkb_device = built.value();
-        device = _impl->vkb_device;
-        dispatch = _impl->vkb_device.make_table();
+        device = built.value();
+        dispatch = device.make_table();
     }
 
-    main_queue_idx = _impl->vkb_device.get_queue_index(vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)).value();
-    main_queue = _impl->vkb_device.get_queue(vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)).value();
+    main_queue_idx = device.get_queue_index(vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)).value();
+    main_queue = device.get_queue(vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)).value();
 
     CHECK_VK(vkCreateCommandPool(device, tmp((VkCommandPoolCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -70,7 +65,7 @@ Device::~Device() {
 
     vmaDestroyAllocator(_impl->allocator);
     vkDestroyCommandPool(device, pool, nullptr);
-    vkb::destroy_device(_impl->vkb_device);
+    vkb::destroy_device(device);
     _impl.reset();
 }
 
