@@ -66,6 +66,11 @@ struct SwapchainSlot {
 
 SwapchainSlot::~SwapchainSlot() {
     auto& context = swapchain._impl->context;
+    if (wait_for_previous_present) {
+        CHECK_VK_THROW(vkWaitForFences(context.device, 1, &wait_for_previous_present, true, UINT64_MAX));
+        vkDestroyFence(context.device, wait_for_previous_present, nullptr);
+        wait_for_previous_present = nullptr;
+    }
     vkDestroySemaphore(context.device, copy_done, nullptr);
     if (wait_for_previous_present)
         vkDestroyFence(context.device, wait_for_previous_present, nullptr);
