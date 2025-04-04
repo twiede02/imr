@@ -35,7 +35,6 @@ Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom) {
             .scalarBlockLayout = true,
             .bufferDeviceAddress = true,
         })
-            // .set_surface(surface)
         .defer_surface_initialization()
         .add_required_extension_features((VkPhysicalDeviceSynchronization2FeaturesKHR) {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR,

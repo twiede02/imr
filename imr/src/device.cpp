@@ -2,7 +2,7 @@
 
 namespace imr {
 
-Device::Device(Context& context, std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom) : Device(context, ([&]() -> vkb::PhysicalDevice {
+static auto make_default_device_selector(Context& context) {
     auto device_selector = vkb::PhysicalDeviceSelector(context.instance)
         .add_required_extension("VK_KHR_maintenance2")
         .add_required_extension("VK_KHR_create_renderpass2")
@@ -24,6 +24,16 @@ Device::Device(Context& context, std::function<void(vkb::PhysicalDeviceSelector&
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR,
             .synchronization2 = true,
         });
+    return device_selector;
+}
+
+std::vector<vkb::PhysicalDevice> Context::available_devices() {
+    auto selector = make_default_device_selector(*this);
+    return selector.select_devices().value();
+}
+
+Device::Device(Context& context, std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom) : Device(context, ([&]() -> vkb::PhysicalDevice {
+    auto device_selector = make_default_device_selector(context);
 
     device_custom(device_selector);
 

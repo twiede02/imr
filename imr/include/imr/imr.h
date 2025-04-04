@@ -23,6 +23,8 @@ namespace imr {
 
         vkb::Instance instance;
         vkb::InstanceDispatchTable dispatch;
+
+        std::vector<vkb::PhysicalDevice> available_devices();
     };
 
     struct Device {
