@@ -24,7 +24,7 @@ namespace imr {
         vkb::Instance instance;
         vkb::InstanceDispatchTable dispatch;
 
-        std::vector<vkb::PhysicalDevice> available_devices();
+        std::vector<vkb::PhysicalDevice> available_devices(std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
     };
 
     struct Device {

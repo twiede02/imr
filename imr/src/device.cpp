@@ -27,8 +27,9 @@ static auto make_default_device_selector(Context& context) {
     return device_selector;
 }
 
-std::vector<vkb::PhysicalDevice> Context::available_devices() {
+std::vector<vkb::PhysicalDevice> Context::available_devices(std::function<void(vkb::PhysicalDeviceSelector&)>&& f) {
     auto selector = make_default_device_selector(*this);
+    f(selector);
     return selector.select_devices().value();
 }
 
