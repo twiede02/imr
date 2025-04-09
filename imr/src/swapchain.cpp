@@ -26,6 +26,7 @@ struct Swapchain::Impl {
     size_t frame_counter = 0;
 
     uint64_t last_present = 0;
+    bool should_resize = false;
 
     vkb::Swapchain swapchain;
     std::vector<std::unique_ptr<SwapchainSlot>> slots;
@@ -176,8 +177,8 @@ static std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(
 
     VkResult acquire_result = device.dispatch.acquireNextImageKHR(_impl->swapchain, UINT64_MAX, image_acquired_semaphore, fence, &image_index);
     switch (acquire_result) {
-        case VK_SUCCESS:
-        case VK_SUBOPTIMAL_KHR: break;
+        case VK_SUCCESS: break;
+        case VK_SUBOPTIMAL_KHR: _impl->should_resize = true; break;
         case VK_ERROR_OUT_OF_DATE_KHR: {
             fprintf(stderr, "Acquire failed. We need to resize!\n");
             vkDestroySemaphore(device.device, image_acquired_semaphore, nullptr);
@@ -223,15 +224,23 @@ Swapchain::Frame::Frame(Impl&& impl) {
     swapchain_image = _impl->slot.image;
 }
 
+void Swapchain::resize() {
+    _impl->should_resize = true;
+}
+
 void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
     auto& device = _impl->device;
     while (true) {
-        auto result = nextSwapchainSlot(&*_impl);
-        if (!result) {
+        if (_impl->should_resize) {
+            _impl->should_resize = false;
             glfwPollEvents();
             drain();
             _impl->destroy_swapchain();
             _impl->build_swapchain();
+        }
+        auto result = nextSwapchainSlot(&*_impl);
+        if (!result) {
+            _impl->should_resize = true;
             continue;
         }
         auto [slot, acquired] = *result;

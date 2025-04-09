@@ -116,6 +116,8 @@ namespace imr {
 
         void beginFrame(std::function<void(Swapchain::Frame&)>&& fn);
 
+        void resize();
+
         /// Waits until all the in-flight frames are done and runs their cleanup jobs
         void drain();
 
