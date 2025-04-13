@@ -11,7 +11,7 @@
 
 namespace imr {
 
-#define CHECK_VK_THROW(do) CHECK_VK(do, throw std::exception())
+#define CHECK_VK_THROW(do) CHECK_VK(do, throw std::runtime_error(#do))
 
 struct SwapchainSlot;
 
@@ -134,7 +134,7 @@ void Swapchain::Impl::build_swapchain() {
         swapchain = built.value();
     } else {
         fprintf(stderr, "Failed to build a swapchain (size=%d,%d, error=%d).\n", width, height, built.vk_result());
-        throw std::exception();
+        throw std::runtime_error("failure to build a swapchain");
     }
 
     for (int i = 0; i < swapchain.image_count; i++) {
@@ -187,7 +187,7 @@ static std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(
         }
         default:
             fprintf(stderr, "Acquire result was: %d\n", acquire_result);
-            throw std::exception();
+            throw std::runtime_error("unhandled acquire error");
     }
 
     // We know the next image !
@@ -551,7 +551,7 @@ void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
             fprintf(stderr, "Present failed. We need to resize!\n");
             break;
         }
-        default: throw std::exception();
+        default: throw std::runtime_error("unhandled queuePresent result");
     }
 }
 

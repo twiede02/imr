@@ -12,16 +12,18 @@ static auto make_default_device_selector(Context& context) {
         .set_required_features((VkPhysicalDeviceFeatures) {
             .shaderUniformBufferArrayDynamicIndexing = true,
         })
-        .set_required_features_11((VkPhysicalDeviceVulkan11Features) {
-        })
-        .set_required_features_12((VkPhysicalDeviceVulkan12Features) {
+        .defer_surface_initialization()
+        .add_required_extension_features((VkPhysicalDeviceScalarBlockLayoutFeatures) {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES,
             .scalarBlockLayout = true,
+        })
+        .add_required_extension_features((VkPhysicalDeviceBufferDeviceAddressFeatures) {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
             .bufferDeviceAddress = true,
         })
-            // .set_surface(surface)
-        .defer_surface_initialization()
         .add_required_extension_features((VkPhysicalDeviceSynchronization2FeaturesKHR) {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR,
+            .pNext = nullptr,
             .synchronization2 = true,
         });
     return device_selector;
@@ -42,7 +44,7 @@ Device::Device(Context& context, std::function<void(vkb::PhysicalDeviceSelector&
     if (selected.has_value())
         return selected.value();
     else
-        throw std::exception();
+        throw std::runtime_error("failed to select a device");
 })()) {}
 
 Device::Device(imr::Context& context, vkb::PhysicalDevice physical_device) : context(context), physical_device(physical_device) {
@@ -61,14 +63,14 @@ Device::Device(imr::Context& context, vkb::PhysicalDevice physical_device) : con
     CHECK_VK(vkCreateCommandPool(device, tmp((VkCommandPoolCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .queueFamilyIndex = main_queue_idx,
-    }), nullptr, &pool), throw std::exception());
+    }), nullptr, &pool), throw std::runtime_error("failed to create cmdpool"));
 
     CHECK_VK(vmaCreateAllocator(tmp((VmaAllocatorCreateInfo) {
         .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
         .physicalDevice = physical_device,
         .device = device,
         .instance = context.instance,
-    }), &_impl->allocator), throw std::exception());
+    }), &_impl->allocator), throw std::runtime_error("failed to create VMA allocator"));
 }
 
 Device::~Device() {

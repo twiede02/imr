@@ -18,7 +18,10 @@ Context::Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom) {
     {
         instance = built.value();
         dispatch = instance.make_table();
-    } else { throw std::exception(); }
+    } else {
+        printf("%s\n", built.error().message().c_str());
+        throw std::runtime_error("failed to build instance");
+    }
 
     auto device_selector = vkb::PhysicalDeviceSelector(instance)
         .add_required_extension("VK_KHR_maintenance2")
