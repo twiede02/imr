@@ -13,7 +13,8 @@
 
 #define CHECK_VK(op, else) if (op != VK_SUCCESS) { fprintf(stderr, "Check failed at %s\n", #op); else; }
 
-inline auto tmp(auto&& t) { return &t; }
+template<typename T>
+inline T* tmp(T&& t) { return &t; }
 
 namespace imr {
     struct Context {

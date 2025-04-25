@@ -541,7 +541,7 @@ void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
         .pWaitSemaphores = semaphores.data(),
         .swapchainCount = 1,
         .pSwapchains = &swapchain._impl->swapchain.swapchain,
-        .pImageIndices = tmp(slot.image_index),
+        .pImageIndices = &slot.image_index,
     }));
     //printf("Queued presentation, will signal %llx\n", (uint64_t) slot.wait_for_previous_present);
     switch (present_result) {
