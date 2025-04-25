@@ -15,7 +15,7 @@ int main() {
     auto& vk = device.dispatch;
 
     while (!glfwWindowShouldClose(window)) {
-        swapchain.beginFrame([&](auto& frame) {
+        swapchain.beginFrame([&](imr::Swapchain::Frame& frame) {
             auto& image = frame.swapchain_image;
 
             VkCommandBuffer cmdbuf;
@@ -29,18 +29,6 @@ int main() {
             vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                 .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-            }));
-
-            VkSemaphore sem;
-            CHECK_VK(vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
-                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-            }), nullptr, &sem), abort());
-
-            vk.setDebugUtilsObjectNameEXT(tmp((VkDebugUtilsObjectNameInfoEXT) {
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType = VK_OBJECT_TYPE_SEMAPHORE,
-                .objectHandle = reinterpret_cast<uint64_t>(sem),
-                .pObjectName = (std::string("11_present_image.sem") + std::to_string(frame.id)).c_str(),
             }));
 
             vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
@@ -108,7 +96,7 @@ int main() {
                 .commandBufferCount = 1,
                 .pCommandBuffers = &cmdbuf,
                 .signalSemaphoreCount = 1,
-                .pSignalSemaphores = &sem,
+                .pSignalSemaphores = &frame.signal_when_ready,
             }), fence);
 
             //printf("Frame submitted with fence = %llx\n", fence);
@@ -116,10 +104,9 @@ int main() {
             frame.add_to_delete_queue(fence, [=, &device]() {
                 //vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);
                 vkDestroyFence(device.device, fence, nullptr);
-                vkDestroySemaphore(device.device, sem, nullptr);
                 vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
             });
-            frame.present(sem);
+            frame.present();
         });
 
         fps_counter.tick();

@@ -516,8 +516,7 @@ int main(int argc, char ** argv) {
     VkPipelineLayout pipeline_layout = create_pipeline_layout(device);
     VkPipeline graphics_pipeline = create_pipeline(device, swapchain, pipeline_layout, cmd_args.use_glsl);
 
-    auto epoch = time();
-    auto prev_frame = epoch;
+    auto prev_frame = time();
     float delta = 0;
 
     while (!glfwWindowShouldClose(window)) {
@@ -539,18 +538,6 @@ int main(int argc, char ** argv) {
             vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                 .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-            }));
-
-            VkSemaphore sem;
-            CHECK_VK(vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
-                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-            }), nullptr, &sem), abort());
-
-            vk.setDebugUtilsObjectNameEXT(tmp((VkDebugUtilsObjectNameInfoEXT) {
-                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-                .objectType = VK_OBJECT_TYPE_SEMAPHORE,
-                .objectHandle = reinterpret_cast<uint64_t>(sem),
-                .pObjectName = (std::string("12_render_pipeline.sem") + std::to_string(frame.id)).c_str(),
             }));
 
             mat4 camera_matrix = camera_get_view_mat4(&camera, frame.width, frame.height);
@@ -688,7 +675,7 @@ int main(int argc, char ** argv) {
                 .commandBufferCount = 1,
                 .pCommandBuffers = &cmdbuf,
                 .signalSemaphoreCount = 1,
-                .pSignalSemaphores = &sem,
+                .pSignalSemaphores = &frame.signal_when_ready,
             }), fence);
 
             //printf("Frame submitted with fence = %llx\n", fence);
@@ -696,11 +683,10 @@ int main(int argc, char ** argv) {
             frame.add_to_delete_queue(fence, [=, &device]() {
                 //vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);
                 vkDestroyFence(device.device, fence, nullptr);
-                vkDestroySemaphore(device.device, sem, nullptr);
                 vkDestroyImageView(device.device, imageView, nullptr);
                 vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
             });
-            frame.present(sem);
+            frame.present();
 
             auto now = time();
             delta = (float) ((now - prev_frame) / 1000000) / 1000.0f;

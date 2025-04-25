@@ -102,7 +102,8 @@ namespace imr {
             size_t width, height;
             VkImage swapchain_image;
             VkSemaphore swapchain_image_available;
-            void present(std::optional<VkSemaphore> sem);
+            VkSemaphore signal_when_ready;
+            void present();
 
             void add_to_delete_queue(std::optional<VkFence> fence, std::function<void(void)>&& fn);
 
