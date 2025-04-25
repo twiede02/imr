@@ -689,7 +689,7 @@ int main(int argc, char ** argv) {
             frame.present();
 
             auto now = time();
-            delta = (float) ((now - prev_frame) / 1000000) / 1000.0f;
+            delta = ((float) ((now - prev_frame) / 1000L)) / 1000000.0f;
             prev_frame = now;
         });
 
