@@ -31,7 +31,7 @@ vec2 matmulnomat(vec2 m1, vec2 m2, vec2 uv) {
     return vec2(x, y);
 }
 
-float perlin_noise(vec2 uv) {
+float perlin_noise(vec2 uv, bool vertex = false) {
     vec2 uv1 = uv;
     float f = 0.0f;
     uv = uv * 0.5f;
@@ -44,5 +44,14 @@ float perlin_noise(vec2 uv) {
     f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
     f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
     f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= noise(uv1 + vec2(15314.151, 0.22415));
+    f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c + 0.1f;
+    if (!vertex) {
+        f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
+        f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
+        f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c + 0.1f;
+        f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
+        f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
+        f += k*noise( uv ); uv = matmulnomat(m1, m2, uv); k *= c;
+    }
     return f;
 }

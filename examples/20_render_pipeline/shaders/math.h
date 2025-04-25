@@ -36,6 +36,10 @@ float clamp(float in, float low, float hi) {
     return in;
 }
 
+float dot(nasl::vec2 a, nasl::vec2 b) {
+    return a.x * b.x + a.y * b.y;
+}
+
 nasl::vec3 mix(nasl::vec3 x, nasl::vec3 y, float a) {
     return x * (1 - a) + y * a;
 }

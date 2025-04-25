@@ -24,7 +24,7 @@ vertex_shader void main() {
     vec4 input_position = vec4(inPosition, 1.0);
     vec2 uv = inPosition.xz;
 
-    float f = perlin_noise(uv);
+    float f = perlin_noise(uv, true);
     input_position.y = input_position.y + 0.8f * f;
 
     gl_Position = PushConstants.render_matrix * input_position;
