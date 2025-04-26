@@ -17,12 +17,6 @@ CameraFreelookState camera_state = {
 };
 CameraInput camera_input;
 
-static auto time() -> uint64_t {
-    timespec t = { 0 };
-    timespec_get(&t, TIME_UTC);
-    return t.tv_sec * 1000000000 + t.tv_nsec;
-}
-
 void camera_update(GLFWwindow*, CameraInput* input);
 
 static VkShaderModule createShaderModule(imr::Device& device, const std::vector<char>& code) {
@@ -249,10 +243,10 @@ const std::vector<Vertex> vertices = {
     {{-0.5f, -0.5f, -0.5f-2.0f}, vertex_6_color},
 };
 
-static int TESSELATION = 50;
-static float GRID_SIZE = 0.1f;
+static int TESSELATION = 512;
 
 void create_flat_surface(std::vector<Vertex> & data) {
+    float GRID_SIZE = 1.0f / TESSELATION;
     for (int xi = -TESSELATION ; xi < TESSELATION; xi++) {
         for (int zi = -TESSELATION ; zi < TESSELATION; zi++) {
             Vertex a = {{(xi + 1) * GRID_SIZE,  0.f, (zi + 1) * GRID_SIZE}, vertex_2_color};
@@ -279,6 +273,7 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
     VkPipelineRasterizationStateCreateInfo rasterization_state =
         initializers::pipeline_rasterization_state_create_info(
                 VK_POLYGON_MODE_FILL,
+                //VK_POLYGON_MODE_LINE,
                 VK_CULL_MODE_BACK_BIT,
                 VK_FRONT_FACE_CLOCKWISE,
                 0);
@@ -516,7 +511,7 @@ int main(int argc, char ** argv) {
     VkPipelineLayout pipeline_layout = create_pipeline_layout(device);
     VkPipeline graphics_pipeline = create_pipeline(device, swapchain, pipeline_layout, cmd_args.use_glsl);
 
-    auto prev_frame = time();
+    auto prev_frame = imr_get_time_nano();
     float delta = 0;
 
     while (!glfwWindowShouldClose(window)) {
@@ -542,6 +537,7 @@ int main(int argc, char ** argv) {
 
             mat4 camera_matrix = camera_get_view_mat4(&camera, frame.width, frame.height);
             vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * 16, &camera_matrix);
+            vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 4*16, 4 * 3, &camera.position);
 
             vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -688,7 +684,7 @@ int main(int argc, char ** argv) {
             });
             frame.present();
 
-            auto now = time();
+            auto now = imr_get_time_nano();
             delta = ((float) ((now - prev_frame) / 1000L)) / 1000000.0f;
             prev_frame = now;
         });
