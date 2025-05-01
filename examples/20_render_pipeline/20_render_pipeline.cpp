@@ -680,6 +680,7 @@ int main(int argc, char ** argv) {
                 //vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);
                 vkDestroyFence(device.device, fence, nullptr);
                 vkDestroyImageView(device.device, imageView, nullptr);
+                vkDestroyImageView(device.device, depthView, nullptr);
                 vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
             });
             frame.present();
