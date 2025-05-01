@@ -82,7 +82,7 @@ VkPipelineShaderStageCreateInfo load_shader(imr::Device& device, const std::stri
 VkPipelineLayout create_pipeline_layout(imr::Device& device) {
     VkPushConstantRange range = initializers::push_constant_range(
             VK_SHADER_STAGE_VERTEX_BIT,
-            16 * 4, //mat4 should™ have this size
+            16 * 4 + 12, //mat4 should™ have this size
             0
     );
 
