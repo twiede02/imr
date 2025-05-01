@@ -20,7 +20,7 @@ location(0) output native_vec3 fragColor;
 location(1) output native_vec2 fragUV;
 
 float length(vec2 v) {
-    return vcc::sqrtf(v.x * v.x + v.y * v.y);
+    return sqrtf(v.x * v.x + v.y * v.y);
 }
 
 extern "C" {
