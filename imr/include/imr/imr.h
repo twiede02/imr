@@ -82,6 +82,19 @@ namespace imr {
         std::unique_ptr<Impl> _impl;
     };
 
+    struct ComputeShader {
+        ComputeShader(Device&, std::string&& name, std::string&& entrypoint_name = "main");
+        ComputeShader(ComputeShader&) = delete;
+        ~ComputeShader();
+
+        VkPipeline pipeline() const;
+        VkPipelineLayout layout() const;
+        VkDescriptorSetLayout set_layout(unsigned) const;
+
+        struct Impl;
+        std::unique_ptr<Impl> _impl;
+    };
+
     struct ImageState {
         Image& image;
         VkImageLayout layout;

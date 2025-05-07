@@ -20,6 +20,19 @@ else ()
     find_package(glfw3 REQUIRED)
 endif ()
 
+option(IMR_USE_CUSTOM_shady "" OFF)
+if (IMR_USE_CUSTOM_shady)
+    include(FetchContent)
+    FetchContent_Declare(
+        shady
+        GIT_REPOSITORY https://github.com/shady-gang/shady
+        GIT_TAG        main
+    )
+    FetchContent_MakeAvailable(shady)
+else ()
+    find_package(shady REQUIRED)
+endif ()
+
 set(CMAKE_CXX_STANDARD 20)
 
 add_subdirectory(vk-bootstrap)

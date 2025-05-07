@@ -11,8 +11,6 @@
 
 namespace imr {
 
-#define CHECK_VK_THROW(do) CHECK_VK(do, throw std::runtime_error(#do))
-
 struct SwapchainSlot;
 
 struct Swapchain::Impl {

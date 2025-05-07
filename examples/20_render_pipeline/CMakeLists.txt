@@ -1,6 +1,3 @@
-find_package(shady REQUIRED)
-#find_package(assimp REQUIRED)
-
 add_subdirectory(shaders)
 
 add_executable(20_render_pipeline 20_render_pipeline.cpp libs/camera.cpp)
