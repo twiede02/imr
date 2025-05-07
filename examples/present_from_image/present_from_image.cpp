@@ -11,15 +11,6 @@ struct vec2 { float x, y; };
 
 struct Tri { vec2 v0, v1, v2; };
 
-struct push_constants {
-    Tri tri = {
-        { -0.5, 0.5 },
-        { 0.5, -0.5 },
-        { 0.5, 0.5}
-    };
-    float time;
-} push_constants;
-
 int main() {
     imr::Context context;
     imr::Device device(context);
@@ -40,7 +31,7 @@ int main() {
 
     size_t spirv_bytes_count;
     uint32_t* spirv_bytes;
-    if (!imr_read_file((std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/checkerboard.spv").c_str(), &spirv_bytes_count, (unsigned char**) &spirv_bytes))
+    if (!imr_read_file((std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/present_from_image.spv").c_str(), &spirv_bytes_count, (unsigned char**) &spirv_bytes))
         abort();
 
     VkShaderModule module;
@@ -68,11 +59,7 @@ int main() {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = 1,
         .pSetLayouts = &set0_layout,
-        .pushConstantRangeCount = 1,
-        .pPushConstantRanges = tmp((VkPushConstantRange) {
-            .stageFlags = VK_SHADER_STAGE_ALL,
-            .size = sizeof(push_constants),
-        })
+        .pushConstantRangeCount = 0,
     }), nullptr, &layout), abort());
 
     VkPipeline pipeline;
@@ -215,54 +202,10 @@ int main() {
                 }),
             }));
 
-            push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
-
             vk.cmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
             vk.cmdBindDescriptorSets(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 1, &set, 0, nullptr);
 
-            std::vector<Tri> tris;
-
-            tris.push_back({
-                               { -0.5, 0.5 },
-                               { 0.0, -0.5 },
-                               { 0.5, 0.5}
-                           });
-            tris.push_back({
-                               { -0.5+0.25, 0.5 },
-                               { 0.0+0.25, -0.5 },
-                               { 0.5+0.25, 0.5}
-                           });
-
-            bool first = true;
-            for (auto tri : tris) {
-                if (first) first = false;
-                else {
-                    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
-                        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                        .dependencyFlags = 0,
-                        .imageMemoryBarrierCount = 1,
-                        .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
-                            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                            .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                            .srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
-                            .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                            .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
-                            .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-                            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                            .image = image->handle,
-                            .subresourceRange = {
-                                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                .levelCount = 1,
-                                .layerCount = 1,
-                            }
-                        }),
-                    }));
-                }
-
-                push_constants.tri = tri;
-                vk.cmdPushConstants(cmdbuf, layout, VK_SHADER_STAGE_ALL, 0, sizeof(push_constants), &push_constants);
-                vk.cmdDispatch(cmdbuf, (image->size.width + 31) / 32, (image->size.height + 31) / 32, 1);
-            }
+            vk.cmdDispatch(cmdbuf, (image->size.width + 31) / 32, (image->size.height + 31) / 32, 1);
 
             vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
