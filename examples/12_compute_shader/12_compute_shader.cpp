@@ -30,17 +30,11 @@ int main() {
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
     imr::Swapchain swapchain(device, window);
 
-    VkFence fence;
-    vkCreateFence(device.device, tmp((VkFenceCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-    }), nullptr, &fence);
-
     imr::FpsCounter fps_counter;
 
     size_t spirv_bytes_count;
     uint32_t* spirv_bytes;
-    if (!imr_read_file((std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/checkerboard.spv").c_str(), &spirv_bytes_count, (unsigned char**) &spirv_bytes))
+    if (!imr_read_file((std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/12_compute_shader.spv").c_str(), &spirv_bytes_count, (unsigned char**) &spirv_bytes))
         abort();
 
     VkShaderModule module;
@@ -101,52 +95,46 @@ int main() {
         }),
     }), nullptr, &pool);
 
-    int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
-    VkExtent3D extents = { static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1};
-    auto image = new imr::Image (device, VK_IMAGE_TYPE_2D, extents, VK_FORMAT_R8G8B8A8_UNORM, (VkImageUsageFlagBits) (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT));
-
-    VkImageView view;
-    vkCreateImageView(device.device, tmp((VkImageViewCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image->handle,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = image->format,
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .levelCount = 1,
-            .layerCount = 1,
-        },
-    }), nullptr, &view);
-
-    VkDescriptorSet set;
-    vkAllocateDescriptorSets(device.device, tmp((VkDescriptorSetAllocateInfo) {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = pool,
-        .descriptorSetCount = 1,
-        .pSetLayouts = &set0_layout,
-    }), &set);
-
-    vkUpdateDescriptorSets(device.device, 1, tmp((VkWriteDescriptorSet) {
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = set,
-        .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-        .pImageInfo = tmp((VkDescriptorImageInfo) {
-            .sampler = VK_NULL_HANDLE,
-            .imageView = view,
-            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        }),
-    }), 0, nullptr);
-
     while (!glfwWindowShouldClose(window)) {
         uint64_t now = imr_get_time_nano();
         fps_counter.tick();
         fps_counter.updateGlfwWindowTitle(window);
 
-        swapchain.beginFrame([&](auto& frame) {
-            vkWaitForFences(device.device, 1, &fence, VK_TRUE, UINT64_MAX);
-            vkResetFences(device.device, 1, &fence);
+        swapchain.beginFrame([&](imr::Swapchain::Frame& frame) {
+            auto image = frame.swapchain_image;
+
+            VkImageView view;
+            vkCreateImageView(device.device, tmp((VkImageViewCreateInfo) {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .image = image,
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .format = swapchain.format(),
+                .subresourceRange = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .levelCount = 1,
+                    .layerCount = 1,
+                },
+            }), nullptr, &view);
+
+            VkDescriptorSet set;
+            vkAllocateDescriptorSets(device.device, tmp((VkDescriptorSetAllocateInfo) {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = pool,
+                .descriptorSetCount = 1,
+                .pSetLayouts = &set0_layout,
+            }), &set);
+
+            vkUpdateDescriptorSets(device.device, 1, tmp((VkWriteDescriptorSet) {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = set,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .pImageInfo = tmp((VkDescriptorImageInfo) {
+                    .sampler = VK_NULL_HANDLE,
+                    .imageView = view,
+                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                }),
+            }), 0, nullptr);
 
             VkCommandBuffer cmdbuf;
             vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
@@ -161,10 +149,6 @@ int main() {
                 .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
             }));
 
-            VkSemaphore sem;
-            vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
-                .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-            }), nullptr, &sem);
             vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
@@ -177,7 +161,7 @@ int main() {
                     .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .image = image->handle,
+                    .image = image,
                     .subresourceRange = {
                         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                         .levelCount = 1,
@@ -186,7 +170,7 @@ int main() {
                 }),
             }));
 
-            vk.cmdClearColorImage(cmdbuf, image->handle, VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
+            vk.cmdClearColorImage(cmdbuf, image, VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
                 .float32 = { 0.0f, 0.0f, 0.0f, 1.0f},
             }), 1, tmp((VkImageSubresourceRange) {
                 .aspectMask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
@@ -206,7 +190,7 @@ int main() {
                     .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
                     .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .image = image->handle,
+                    .image = image,
                     .subresourceRange = {
                         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                         .levelCount = 1,
@@ -220,49 +204,13 @@ int main() {
             vk.cmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
             vk.cmdBindDescriptorSets(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 1, &set, 0, nullptr);
 
-            std::vector<Tri> tris;
-
-            tris.push_back({
-                               { -0.5, 0.5 },
-                               { 0.0, -0.5 },
-                               { 0.5, 0.5}
-                           });
-            tris.push_back({
-                               { -0.5+0.25, 0.5 },
-                               { 0.0+0.25, -0.5 },
-                               { 0.5+0.25, 0.5}
-                           });
-
-            bool first = true;
-            for (auto tri : tris) {
-                if (first) first = false;
-                else {
-                    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
-                        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                        .dependencyFlags = 0,
-                        .imageMemoryBarrierCount = 1,
-                        .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
-                            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                            .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                            .srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
-                            .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                            .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT | VK_ACCESS_2_SHADER_STORAGE_READ_BIT,
-                            .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-                            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                            .image = image->handle,
-                            .subresourceRange = {
-                                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                .levelCount = 1,
-                                .layerCount = 1,
-                            }
-                        }),
-                    }));
-                }
-
-                push_constants.tri = tri;
-                vk.cmdPushConstants(cmdbuf, layout, VK_SHADER_STAGE_ALL, 0, sizeof(push_constants), &push_constants);
-                vk.cmdDispatch(cmdbuf, (image->size.width + 31) / 32, (image->size.height + 31) / 32, 1);
-            }
+            push_constants.tri = {
+                { -0.5, 0.5 },
+                { 0.0, -0.5 },
+                { 0.5, 0.5 }
+            };
+            vk.cmdPushConstants(cmdbuf, layout, VK_SHADER_STAGE_ALL, 0, sizeof(push_constants), &push_constants);
+            vk.cmdDispatch(cmdbuf, (frame.width + 31) / 32, (frame.height + 31) / 32, 1);
 
             vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -275,8 +223,8 @@ int main() {
                     .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
                     .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .image = image->handle,
+                    .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                    .image = image,
                     .subresourceRange = {
                         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                         .levelCount = 1,
@@ -288,18 +236,22 @@ int main() {
             vkEndCommandBuffer(cmdbuf);
             vk.queueSubmit(device.main_queue, 1, tmp((VkSubmitInfo) {
                 .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                .waitSemaphoreCount = 0,
+                .waitSemaphoreCount = 1,
+                .pWaitSemaphores = &frame.swapchain_image_available,
+                .pWaitDstStageMask = tmp((VkPipelineStageFlags) { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT }),
                 .commandBufferCount = 1,
                 .pCommandBuffers = &cmdbuf,
                 .signalSemaphoreCount = 1,
-                .pSignalSemaphores = &sem,
+                .pSignalSemaphores = &frame.signal_when_ready,
             }), VK_NULL_HANDLE);
 
             frame.add_to_delete_queue(std::nullopt, [=, &device]() {
-                vkDestroySemaphore(device.device, sem, nullptr);
+                vkDestroyImageView(device.device, view, nullptr);
+                vkFreeDescriptorSets(device.device, pool, 1, &set);
                 vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
             });
-            frame.presentFromImage(image->handle, fence, { sem }, VK_IMAGE_LAYOUT_GENERAL, std::make_optional<VkExtent2D>(image->size.width, image->size.height));
+
+            frame.present();
         });
 
         glfwPollEvents();
@@ -309,14 +261,9 @@ int main() {
 
     vkDestroyPipeline(device.device, pipeline, nullptr);
     vkDestroyShaderModule(device.device, module, nullptr);
-    vkFreeDescriptorSets(device.device, pool, 1, &set);
     vkDestroyDescriptorPool(device.device, pool, nullptr);
     vkDestroyPipelineLayout(device.device, layout, nullptr);
     vkDestroyDescriptorSetLayout(device.device, set0_layout, nullptr);
-
-    delete image;
-    vkDestroyImageView(device.device, view, nullptr);
-    vkDestroyFence(device.device, fence, nullptr);
 
     return 0;
 }
