@@ -1,6 +1,7 @@
 add_subdirectory(10_intro)
 add_subdirectory(11_present_image)
 add_subdirectory(12_compute_shader)
+add_subdirectory(13_compute_triangle)
 add_subdirectory(20_render_pipeline)
 
 add_executable(demo main.cpp)
