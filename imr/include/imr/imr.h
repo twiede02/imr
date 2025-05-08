@@ -83,6 +83,19 @@ namespace imr {
         std::unique_ptr<Impl> _impl;
     };
 
+    struct ComputeShader {
+        ComputeShader(Device&, std::string&& name, std::string&& entrypoint_name = "main");
+        ComputeShader(ComputeShader&) = delete;
+        ~ComputeShader();
+
+        VkPipeline pipeline() const;
+        VkPipelineLayout layout() const;
+        VkDescriptorSetLayout set_layout(unsigned) const;
+
+        struct Impl;
+        std::unique_ptr<Impl> _impl;
+    };
+
     struct ImageState {
         Image& image;
         VkImageLayout layout;
@@ -103,7 +116,8 @@ namespace imr {
             size_t width, height;
             VkImage swapchain_image;
             VkSemaphore swapchain_image_available;
-            void present(std::optional<VkSemaphore> sem);
+            VkSemaphore signal_when_ready;
+            void present();
 
             void add_to_delete_queue(std::optional<VkFence> fence, std::function<void(void)>&& fn);
 

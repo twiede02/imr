@@ -11,8 +11,6 @@
 
 namespace imr {
 
-#define CHECK_VK_THROW(do) CHECK_VK(do, throw std::runtime_error(#do))
-
 struct SwapchainSlot;
 
 struct Swapchain::Impl {
@@ -51,6 +49,17 @@ struct SwapchainSlot {
             .objectHandle = reinterpret_cast<uint64_t>(copy_done),
             .pObjectName = "SwapchainSlot::copy_done"
         }));
+
+        CHECK_VK_THROW(vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        }), nullptr, &present_semaphore));
+
+        vk.setDebugUtilsObjectNameEXT(tmp((VkDebugUtilsObjectNameInfoEXT) {
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+            .objectType = VK_OBJECT_TYPE_SEMAPHORE,
+            .objectHandle = reinterpret_cast<uint64_t>(copy_done),
+            .pObjectName = "SwapchainSlot::present_queued"
+        }));
     }
     SwapchainSlot(SwapchainSlot&) = delete;
 
@@ -58,6 +67,7 @@ struct SwapchainSlot {
     uint32_t image_index;
 
     VkSemaphore copy_done;
+    VkSemaphore present_semaphore;
     VkFence wait_for_previous_present = VK_NULL_HANDLE;
 
     std::unique_ptr<Swapchain::Frame> frame = nullptr;
@@ -73,6 +83,7 @@ SwapchainSlot::~SwapchainSlot() {
         wait_for_previous_present = nullptr;
     }
     vkDestroySemaphore(device.device, copy_done, nullptr);
+    vkDestroySemaphore(device.device, present_semaphore, nullptr);
     if (wait_for_previous_present)
         vkDestroyFence(device.device, wait_for_previous_present, nullptr);
 }
@@ -247,6 +258,7 @@ void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
         slot.frame.reset();
         slot.frame = std::make_unique<Frame>(std::move(Frame::Impl(device, slot)));
         slot.frame->swapchain_image_available = acquired;
+        slot.frame->signal_when_ready = slot.present_semaphore;
         slot.frame->id = _impl->frame_counter++;
         slot.frame->width = _impl->swapchain.extent.width;
         slot.frame->height = _impl->swapchain.extent.height;
@@ -373,14 +385,14 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_re
         .commandBufferCount = 1,
         .pCommandBuffers = &cmdbuf,
         .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &slot.copy_done,
+        .pSignalSemaphores = &slot.present_semaphore,
     }), signal_when_reusable);
 
     add_to_delete_queue(std::nullopt, [=, &device]() {
         vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
     });
 
-    present(slot.copy_done);
+    present();
 }
 
 void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
@@ -495,22 +507,17 @@ void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusa
         .commandBufferCount = 1,
         .pCommandBuffers = &cmdbuf,
         .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &slot.copy_done,
+        .pSignalSemaphores = &slot.present_semaphore,
     }), signal_when_reusable);
-
-    // abort();
-
-    semaphores.clear();
-    semaphores.emplace_back(slot.copy_done);
 
     add_to_delete_queue(std::nullopt, [=, &device]() {
         vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
     });
 
-    present(slot.copy_done);
+    present();
 }
 
-void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
+void Swapchain::Frame::present() {
     auto& slot = _impl->slot;
     auto& swapchain = slot.swapchain;
     auto& device = _impl->device;
@@ -532,8 +539,7 @@ void Swapchain::Frame::present(std::optional<VkSemaphore> sem) {
     //printf("Presenting in slot: %d\n", slot.image_index);
 
     std::vector<VkSemaphore> semaphores;
-    if (sem)
-        semaphores.push_back(*sem);
+    semaphores.push_back(slot.present_semaphore);
 
     VkResult present_result = vkQueuePresentKHR(device.main_queue, tmp((VkPresentInfoKHR) {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
