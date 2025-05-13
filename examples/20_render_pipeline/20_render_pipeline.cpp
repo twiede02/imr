@@ -665,14 +665,15 @@ int main(int argc, char ** argv) {
 
             //printf("Frame submitted with fence = %llx\n", fence);
 
-            frame.add_to_delete_queue(fence, [=, &device]() {
+            frame.addCleanupFence(fence);
+            frame.addCleanupAction([=, &device]() {
                 //vkWaitForFences(context.device, 1, &fence, true, UINT64_MAX);
                 vkDestroyFence(device.device, fence, nullptr);
                 vkDestroyImageView(device.device, imageView, nullptr);
                 vkDestroyImageView(device.device, depthView, nullptr);
                 vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
             });
-            frame.present();
+            frame.queuePresent();
 
             auto now = imr_get_time_nano();
             delta = ((float) ((now - prev_frame) / 1000L)) / 1000000.0f;

@@ -173,7 +173,7 @@ int main() {
                 .pSignalSemaphores = &sem,
             }), VK_NULL_HANDLE);
 
-            frame.add_to_delete_queue(std::nullopt, [=, &device]() {
+            frame.addCleanupAction([=, &device]() {
                 vkDestroySemaphore(device.device, sem, nullptr);
                 vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
             });

@@ -68,6 +68,8 @@ struct Buffer {
     std::unique_ptr<Impl> _impl;
 };
 
+/// Deals with the common use-cases for images, allocating memory for you and tracking properties.
+/// Does not track image layouts for you, much of the framework assumes VK_IMAGE_LAYOUT_GENERAL
 struct Image {
     VkImage handle() const;
 
@@ -78,7 +80,6 @@ struct Image {
     Image(Device&, VkImageType dim, VkExtent3D size, VkFormat format, VkImageUsageFlagBits usage);
     Image(Image&) = delete;
     Image(Image&&);
-    //Image& operator=(Image&& other) = default;
     ~Image();
 
     VkImageSubresourceRange whole_image_subresource_range() const;
@@ -126,6 +127,8 @@ struct Swapchain {
 
     Device& device() const;
     VkFormat format() const;
+
+    /// Approximate FPS cap, avoids melting your GPU on a trivial scene
     int maxFps = 999;
 
     struct Frame {
@@ -136,9 +139,10 @@ struct Swapchain {
         Image& image() const;
         VkSemaphore swapchain_image_available;
         VkSemaphore signal_when_ready;
-        void present();
+        void queuePresent();
 
-        void add_to_delete_queue(std::optional<VkFence> fence, std::function<void(void)>&& fn);
+        void addCleanupFence(VkFence fence);
+        void addCleanupAction(std::function<void(void)>&& fn);
 
         class Impl;
         std::unique_ptr<Impl> _impl;
@@ -148,6 +152,10 @@ struct Swapchain {
         ~Frame();
     };
 
+    /// API to obtain a swapchain image, do some rendering with it and then ultimately queuePresent it.
+    /// You have to consume the `swapchain_image_available` semaphore
+    /// You have to signal the `signal_when_ready` semaphore
+    /// You have to call queuePresent() when you're done
     void beginFrame(std::function<void(Swapchain::Frame&)>&& fn);
 
     struct SimplifiedRenderContext {
@@ -157,6 +165,7 @@ struct Swapchain {
         virtual void addCleanupAction(std::function<void(void)>&& fn) = 0;
     };
 
+    /// Simplified API to draw a frame, deals with cmdbuf allocation, recording and submission, as well as layout transitions in and out of VK_IMAGE_LAYOUT_GENERAL for the swapchain image
     void renderFrameSimplified(std::function<void(SimplifiedRenderContext&)>&& fn);
 
     void resize();

@@ -97,11 +97,11 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_re
         .pSignalSemaphores = &slot.present_semaphore,
     }), signal_when_reusable);
 
-    add_to_delete_queue(std::nullopt, [=, &device]() {
+    addCleanupAction([=, &device]() {
         vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
     });
 
-    present();
+    queuePresent();
 }
 
 void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout, std::optional<VkExtent2D> image_size) {
@@ -219,11 +219,11 @@ void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusa
         .pSignalSemaphores = &slot.present_semaphore,
     }), signal_when_reusable);
 
-    add_to_delete_queue(std::nullopt, [=, &device]() {
+    addCleanupAction([=, &device]() {
         vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
     });
 
-    present();
+    queuePresent();
 }
 
 

@@ -18,7 +18,7 @@ Image& SimplifiedRenderContextImpl::image() const { return frame.image(); }
 VkCommandBuffer SimplifiedRenderContextImpl::cmdbuf() const { return command_buffer; }
 
 void SimplifiedRenderContextImpl::addCleanupAction(std::function<void()>&& fn) {
-    frame.add_to_delete_queue(std::nullopt, std::move(fn));
+    frame.addCleanupAction(std::move(fn));
 }
 
 void Swapchain::renderFrameSimplified(std::function<void(SimplifiedRenderContext&)>&& fn) {
@@ -108,12 +108,13 @@ void Swapchain::renderFrameSimplified(std::function<void(SimplifiedRenderContext
         }), fence);
 
         // cleanup those objects once the cmdbuf has executed
-        frame.add_to_delete_queue(fence, [=, &device]() {
+        frame.addCleanupFence(fence);
+        frame.addCleanupAction([=, &device]() {
             vkDestroyFence(device.device, fence, nullptr);
             vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
         });
 
-        frame.present();
+        frame.queuePresent();
     });
 }
 

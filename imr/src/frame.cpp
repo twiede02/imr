@@ -6,9 +6,11 @@
 
 namespace imr {
 
-void Swapchain::Frame::add_to_delete_queue(std::optional<VkFence> fence, std::function<void()>&& fn) {
-    if (fence)
-        _impl->cleanup_fences.push_back(*fence);
+void Swapchain::Frame::addCleanupFence(VkFence fence) {
+    _impl->cleanup_fences.push_back(fence);
+}
+
+void Swapchain::Frame::addCleanupAction(std::function<void(void)>&& fn) {
     _impl->cleanup_queue.push_back(std::move(fn));
 }
 
@@ -45,7 +47,7 @@ Swapchain::Frame::~Frame() {
     _impl->cleanup_queue.clear();
 }
 
-void Swapchain::Frame::present() {
+void Swapchain::Frame::queuePresent() {
     auto& slot = _impl->slot;
     auto& swapchain = slot.swapchain;
     auto& device = _impl->device;
@@ -111,7 +113,7 @@ void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
         slot.frame->signal_when_ready = slot.present_semaphore;
         slot.frame->id = _impl->frame_counter++;
         assert(acquired);
-        slot.frame->add_to_delete_queue(std::nullopt, [=, &device]() {
+        slot.frame->addCleanupAction([=, &device]() {
             vkDestroySemaphore(device.device, acquired, nullptr);
         });
 
