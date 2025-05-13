@@ -516,12 +516,12 @@ int main(int argc, char ** argv) {
     float delta = 0;
 
     while (!glfwWindowShouldClose(window)) {
-        swapchain.beginFrame([&](auto& frame) {
+        swapchain.beginFrame([&](imr::Swapchain::Frame& frame) {
             camera_update(window, &camera_input);
             camera_move_freelook(&camera, &camera_input, &camera_state, delta);
 
 
-            auto& image = frame.swapchain_image;
+            auto& image = frame.image();
 
             VkCommandBuffer cmdbuf;
             vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
@@ -536,7 +536,7 @@ int main(int argc, char ** argv) {
                 .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
             }));
 
-            mat4 camera_matrix = camera_get_view_mat4(&camera, frame.width, frame.height);
+            mat4 camera_matrix = camera_get_view_mat4(&camera, image.size().width, image.size().height);
             vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * 16, &camera_matrix);
             vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 4*16, 4 * 3, &camera.position);
 
@@ -552,7 +552,7 @@ int main(int argc, char ** argv) {
                     .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .image = image,
+                    .image = image.handle(),
                     .subresourceRange = {
                         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                         .levelCount = 1,
@@ -572,7 +572,7 @@ int main(int argc, char ** argv) {
                     .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                    .image = depth_image.handle,
+                    .image = depth_image.handle(),
                     .subresourceRange = {
                         .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | (hasStencilComponent(depth_format) ? VK_IMAGE_ASPECT_STENCIL_BIT : (VkImageAspectFlags) 0),
                         .levelCount = 1,
@@ -581,8 +581,8 @@ int main(int argc, char ** argv) {
                 }),
             }));
 
-            VkImageView imageView = createImageView(device, image, swapchain.format(), VK_IMAGE_ASPECT_COLOR_BIT);
-            VkImageView depthView = createImageView(device, depth_image.handle, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
+            VkImageView imageView = createImageView(device, image.handle(), swapchain.format(), VK_IMAGE_ASPECT_COLOR_BIT);
+            VkImageView depthView = createImageView(device, depth_image.handle(), depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
 
             VkRenderingAttachmentInfoKHR color_attachment_info = initializers::rendering_attachment_info();
             color_attachment_info.imageView = imageView;
@@ -593,7 +593,7 @@ int main(int argc, char ** argv) {
             //color_attachment_info.clearValue = {.color = { 0.7f, 0.7f, 0.7f, 1.0f}};
 
             VkRenderingInfoKHR render_info = initializers::rendering_info(
-                initializers::rect2D(static_cast<int>(frame.width), static_cast<int>(frame.height), 0, 0),
+                initializers::rect2D(static_cast<int>(image.size().width), static_cast<int>(image.size().height), 0, 0),
                 1,
                 &color_attachment_info
             );
@@ -620,10 +620,10 @@ int main(int argc, char ** argv) {
 
             vkCmdBeginRenderingKHR(cmdbuf, &render_info);
 
-            VkViewport viewport = initializers::viewport(static_cast<float>(frame.width), static_cast<float>(frame.height), 0.0f, 1.0f);
+            VkViewport viewport = initializers::viewport(static_cast<float>(image.size().width), static_cast<float>(image.size().height), 0.0f, 1.0f);
             vkCmdSetViewport(cmdbuf, 0, 1, &viewport);
 
-            VkRect2D scissor = initializers::rect2D(static_cast<int>(frame.width), static_cast<int>(frame.height), 0, 0);
+            VkRect2D scissor = initializers::rect2D(static_cast<int>(image.size().width), static_cast<int>(image.size().height), 0, 0);
             vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
 
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
@@ -648,7 +648,7 @@ int main(int argc, char ** argv) {
                     .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
                     .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                    .image = image,
+                    .image = image.handle(),
                     .subresourceRange = {
                         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                         .levelCount = 1,
