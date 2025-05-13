@@ -2,6 +2,7 @@
 #include "imr/util.h"
 
 #include <fstream>
+#include <filesystem>
 
 #include "VkBootstrap.h"
 
@@ -329,11 +330,11 @@ VkPipeline create_pipeline(imr::Device& device, imr::Swapchain& swapchain, VkPip
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shader_stages{};
     if (use_glsl) {
-        shader_stages[0] = load_shader(device, "shaders/shader.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
-        shader_stages[1] = load_shader(device, "shaders/shader.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+        shader_stages[0] = load_shader(device, std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/shaders/shader.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
+        shader_stages[1] = load_shader(device, std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/shaders/shader.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
     } else {
-        shader_stages[0] = load_shader(device, "shaders/shader.vert.cpp.spv", VK_SHADER_STAGE_VERTEX_BIT);
-        shader_stages[1] = load_shader(device, "shaders/shader.frag.cpp.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+        shader_stages[0] = load_shader(device, std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/shaders/shader.vert.cpp.spv", VK_SHADER_STAGE_VERTEX_BIT);
+        shader_stages[1] = load_shader(device, std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/shaders/shader.frag.cpp.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
     }
 
     // Create graphics pipeline for dynamic rendering
