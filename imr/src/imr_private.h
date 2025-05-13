@@ -1,3 +1,6 @@
+#ifndef IMR_PRIVATE_H
+#define IMR_PRIVATE_H
+
 #include "imr/imr.h"
 
 #include "vk_mem_alloc.h"
@@ -16,3 +19,5 @@ struct Device::Impl {
 Image make_image_from(Device& device, VkImage existing_handle, VkImageType dim, VkExtent3D size, VkFormat format);
 
 }
+
+#endif
