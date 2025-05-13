@@ -101,11 +101,6 @@ namespace imr {
         std::unique_ptr<Impl> _impl;
     };
 
-    struct ImageState {
-        Image& image;
-        VkImageLayout layout;
-    };
-
     struct Swapchain {
         Swapchain(Device&, GLFWwindow* window);
         ~Swapchain();
