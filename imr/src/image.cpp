@@ -4,11 +4,25 @@ namespace imr {
 
 struct Image::Impl {
     Device& device;
-    VmaAllocation vma_allocation;
+    VkImage handle;
+    VkImageType dim;
+    VkExtent3D size;
+    VkFormat format;
+    std::optional<VmaAllocation> vma_allocation;
+
+    Impl(Device& device, VkImageType dim, VkExtent3D size, VkFormat format)
+    : device(device), handle(VK_NULL_HANDLE), dim(dim), size(size), format(format) {}
+    Impl(Device& device, VkImage existing_handle, VkImageType dim, VkExtent3D size, VkFormat format)
+    : device(device), handle(existing_handle), dim(dim), size(size), format(format) {}
 };
 
-Image::Image(Device& device, VkImageType dim, VkExtent3D size, VkFormat format, VkImageUsageFlagBits usage) : dim(dim), size(size), format(format), usage(usage) {
-    _impl = std::make_unique<Impl>(device);
+VkImage Image::handle() const { return _impl->handle; }
+VkImageType Image::dim() const { return _impl->dim; }
+VkExtent3D Image::size() const { return _impl->size; }
+VkFormat Image::format() const { return _impl->format; }
+
+Image::Image(Device& device, VkImageType dim, VkExtent3D size, VkFormat format, VkImageUsageFlagBits usage) {
+    _impl = std::make_unique<Impl>(device, dim, size, format);
     VkImageCreateInfo image_create_info = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         .imageType = dim,
@@ -18,7 +32,7 @@ Image::Image(Device& device, VkImageType dim, VkExtent3D size, VkFormat format, 
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = usage,
+        .usage = (VkImageUsageFlags) usage,
         .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
@@ -26,11 +40,24 @@ Image::Image(Device& device, VkImageType dim, VkExtent3D size, VkFormat format, 
         .flags = 0,
         // .usage = VMA_MEMORY_USAGE_AUTO,
     };
-    vmaCreateImage(device._impl->allocator, &image_create_info, &alloc_info, &handle, &_impl->vma_allocation, nullptr);
+    VmaAllocation& vma_allocation = _impl->vma_allocation.emplace();
+    vmaCreateImage(device._impl->allocator, &image_create_info, &alloc_info, &_impl->handle, &vma_allocation, nullptr);
 }
 
+Image make_image_from(Device& device, VkImage existing_handle, VkImageType dim, VkExtent3D size, VkFormat format) {
+    return Image(Image::Impl(device, existing_handle, dim, size, format));
+}
+
+Image::Image(Impl&& impl) {
+    _impl = std::make_unique<Impl>(impl);
+}
+
+Image::Image(Image&& other) : _impl(std::move(other._impl)) {}
+
 Image::~Image() {
-    vmaDestroyImage(_impl->device._impl->allocator, handle, _impl->vma_allocation);
+    if (_impl)
+        if (_impl->vma_allocation)
+            vmaDestroyImage(_impl->device._impl->allocator, _impl->handle, _impl->vma_allocation.value());
 }
 
 }

@@ -28,8 +28,8 @@ int main() {
     while (!glfwWindowShouldClose(window)) {
         using Frame = imr::Swapchain::Frame;
         swapchain.beginFrame([&](Frame& frame) {
-            int nwidth = frame.width;
-            int nheight = frame.height;
+            int nwidth = frame.image().size().width;
+            int nheight = frame.image().size().height;
 
             if (nwidth != width || nheight != height) {
                 width = nwidth;

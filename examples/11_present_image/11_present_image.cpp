@@ -16,7 +16,7 @@ int main() {
 
     while (!glfwWindowShouldClose(window)) {
         swapchain.beginFrame([&](imr::Swapchain::Frame& frame) {
-            auto& image = frame.swapchain_image;
+            auto& image = frame.image();
 
             VkCommandBuffer cmdbuf;
             vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
@@ -43,7 +43,7 @@ int main() {
                     .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .image = image,
+                    .image = image.handle(),
                     .subresourceRange = {
                         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                         .levelCount = 1,
@@ -52,7 +52,7 @@ int main() {
                 }),
             }));
 
-            vkCmdClearColorImage(cmdbuf, image, VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
+            vkCmdClearColorImage(cmdbuf, image.handle(), VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
                 .float32 = { 1.0f, 0.0f, 0.0f, 1.0f},
             }), 1, tmp((VkImageSubresourceRange) {
                 .aspectMask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
@@ -72,7 +72,7 @@ int main() {
                     .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
                     .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                    .image = image,
+                    .image = image.handle(),
                     .subresourceRange = {
                         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                         .levelCount = 1,

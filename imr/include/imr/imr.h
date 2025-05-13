@@ -68,18 +68,21 @@ namespace imr {
     };
 
     struct Image {
-        VkImageType dim;
-        VkExtent3D size;
-        VkFormat format;
-        VkImageUsageFlagBits usage;
+        VkImage handle() const;
 
-        VkImage handle;
+        VkImageType dim() const;
+        VkExtent3D size() const;
+        VkFormat format() const;
 
         Image(Device&, VkImageType dim, VkExtent3D size, VkFormat format, VkImageUsageFlagBits usage);
         Image(Image&) = delete;
+        Image(Image&&);
+        //Image& operator=(Image&& other) = default;
         ~Image();
 
         struct Impl;
+        Image(Impl&&);
+    private:
         std::unique_ptr<Impl> _impl;
     };
 
@@ -113,8 +116,7 @@ namespace imr {
             void presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
 
             size_t id;
-            size_t width, height;
-            VkImage swapchain_image;
+            Image& image() const;
             VkSemaphore swapchain_image_available;
             VkSemaphore signal_when_ready;
             void present();

@@ -91,6 +91,12 @@ SwapchainSlot::~SwapchainSlot() {
 struct Swapchain::Frame::Impl {
     Device& device;
     SwapchainSlot& slot;
+    std::unique_ptr<Image> image;
+
+    Impl(Impl&) = delete;
+    Impl(Impl&&) = default;
+    Impl& operator=(Impl&&) = default;
+    Impl(Device&, SwapchainSlot&);
 
     std::vector<VkFence> cleanup_fences;
     std::vector<std::function<void(void)>> cleanup_queue;
@@ -231,13 +237,22 @@ void Swapchain::Frame::add_to_delete_queue(std::optional<VkFence> fence, std::fu
 }
 
 Swapchain::Frame::Frame(Impl&& impl) {
-    _impl = std::make_unique<Frame::Impl>(impl);
-    swapchain_image = _impl->slot.image;
+    _impl = std::make_unique<Frame::Impl>(std::move(impl));
 }
 
 void Swapchain::resize() {
     _impl->should_resize = true;
 }
+
+Swapchain::Frame::Impl::Impl(Device& device, SwapchainSlot& slot) : device(device), slot(slot) {
+    auto vkb_swapchain = slot.swapchain._impl->swapchain;
+    VkExtent3D size = { vkb_swapchain.extent.width, vkb_swapchain.extent.height, 1 };
+    auto i = make_image_from(device, slot.image, VK_IMAGE_TYPE_2D, size, vkb_swapchain.image_format);
+    image = std::make_unique<Image>(std::move(i));
+}
+
+Image& Swapchain::Frame::image() const { return *_impl->image; }
+
 
 void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
     auto& device = _impl->device;
@@ -260,8 +275,6 @@ void Swapchain::beginFrame(std::function<void(Swapchain::Frame&)>&& fn) {
         slot.frame->swapchain_image_available = acquired;
         slot.frame->signal_when_ready = slot.present_semaphore;
         slot.frame->id = _impl->frame_counter++;
-        slot.frame->width = _impl->swapchain.extent.width;
-        slot.frame->height = _impl->swapchain.extent.height;
         assert(acquired);
         slot.frame->_impl->cleanup_queue.emplace_back([=, &device]() {
             vkDestroySemaphore(device.device, acquired, nullptr);

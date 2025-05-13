@@ -13,4 +13,6 @@ struct Device::Impl {
     std::vector<std::unique_ptr<Image>> images;
 };
 
+Image make_image_from(Device& device, VkImage existing_handle, VkImageType dim, VkExtent3D size, VkFormat format);
+
 }

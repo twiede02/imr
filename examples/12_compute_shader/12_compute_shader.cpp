@@ -43,12 +43,12 @@ int main() {
         fps_counter.updateGlfwWindowTitle(window);
 
         swapchain.beginFrame([&](imr::Swapchain::Frame& frame) {
-            auto image = frame.swapchain_image;
+            auto& image = frame.image();
 
             VkImageView view;
             vkCreateImageView(device.device, tmp((VkImageViewCreateInfo) {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .image = image,
+                .image = image.handle(),
                 .viewType = VK_IMAGE_VIEW_TYPE_2D,
                 .format = swapchain.format(),
                 .subresourceRange = {
@@ -103,7 +103,7 @@ int main() {
                     .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .image = image,
+                    .image = image.handle(),
                     .subresourceRange = {
                         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                         .levelCount = 1,
@@ -112,7 +112,7 @@ int main() {
                 }),
             }));
 
-            vk.cmdClearColorImage(cmdbuf, image, VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
+            vk.cmdClearColorImage(cmdbuf, image.handle(), VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
                 .float32 = { 0.0f, 0.0f, 0.0f, 1.0f},
             }), 1, tmp((VkImageSubresourceRange) {
                 .aspectMask = VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT,
@@ -132,7 +132,7 @@ int main() {
                     .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
                     .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .image = image,
+                    .image = image.handle(),
                     .subresourceRange = {
                         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                         .levelCount = 1,
@@ -144,7 +144,7 @@ int main() {
             vk.cmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
             vk.cmdBindDescriptorSets(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.layout(), 0, 1, &set, 0, nullptr);
 
-            vk.cmdDispatch(cmdbuf, (frame.width + 31) / 32, (frame.height + 31) / 32, 1);
+            vk.cmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
 
             vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -158,7 +158,7 @@ int main() {
                     .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
                     .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
                     .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                    .image = image,
+                    .image = image.handle(),
                     .subresourceRange = {
                         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                         .levelCount = 1,
