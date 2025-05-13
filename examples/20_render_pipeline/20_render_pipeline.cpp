@@ -553,11 +553,7 @@ int main(int argc, char ** argv) {
                     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .newLayout = VK_IMAGE_LAYOUT_GENERAL,
                     .image = image.handle(),
-                    .subresourceRange = {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .levelCount = 1,
-                        .layerCount = 1,
-                    }
+                    .subresourceRange = image.whole_image_subresource_range(),
                 }),
             }));
             vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
@@ -573,11 +569,7 @@ int main(int argc, char ** argv) {
                     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                     .image = depth_image.handle(),
-                    .subresourceRange = {
-                        .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | (hasStencilComponent(depth_format) ? VK_IMAGE_ASPECT_STENCIL_BIT : (VkImageAspectFlags) 0),
-                        .levelCount = 1,
-                        .layerCount = 1,
-                    }
+                    .subresourceRange = depth_image.whole_image_subresource_range(),
                 }),
             }));
 
@@ -649,11 +641,7 @@ int main(int argc, char ** argv) {
                     .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
                     .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                     .image = image.handle(),
-                    .subresourceRange = {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .levelCount = 1,
-                        .layerCount = 1,
-                    }
+                    .subresourceRange = image.whole_image_subresource_range(),
                 }),
             }));
 

@@ -80,6 +80,8 @@ namespace imr {
         //Image& operator=(Image&& other) = default;
         ~Image();
 
+        VkImageSubresourceRange whole_image_subresource_range() const;
+
         struct Impl;
         Image(Impl&&);
     private:
