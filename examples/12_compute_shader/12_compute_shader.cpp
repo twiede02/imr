@@ -7,10 +7,6 @@
 #include <memory>
 #include <filesystem>
 
-struct vec2 { float x, y; };
-
-struct Tri { vec2 v0, v1, v2; };
-
 int main() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -20,6 +16,7 @@ int main() {
     imr::Device device(context);
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
+    // this class takes care of various boilerplate setup for you
     imr::ComputeShader shader(device, "12_compute_shader.spv");
 
     auto& vk = device.dispatch;
@@ -31,32 +28,17 @@ int main() {
             auto& image = context.image();
             auto cmdbuf = context.cmdbuf();
 
-            vkCmdClearColorImage(cmdbuf, image.handle(), VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
-                .float32 = { 0.0f, 0.0f, 0.0f, 1.0f},
-            }), 1, tmp(image.whole_image_subresource_range()));
-
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
-                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                .dependencyFlags = 0,
-                .imageMemoryBarrierCount = 1,
-                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
-                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                    .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                    .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                    .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                    .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-                    .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .image = image.handle(),
-                    .subresourceRange = image.whole_image_subresource_range(),
-                }),
-            }));
-
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
+            // this helper class takes care of "descriptors"
+            // it has to live as long as the frame rendering takes so it _cannot_ be stack-allocated here
+            // instead it goes on the heap and we manually delete it
             auto shader_bind_helper = shader.create_bind_helper();
             shader_bind_helper->set_storage_image(0, 0, image);
             shader_bind_helper->commit(cmdbuf);
 
+            // We dispatch invocations in "workgroups", whose size is defined in the compute shader file
+            // we need to dispatch (screenSize / workgroupSize) workgroups, but rounding up if the screen size is not a multiple of the workgroup size
+            // all sizes here are 3D but we use only the first two to match the screen size and make the "depth" dimension just one
             vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
 
             context.addCleanupAction([=, &device]() {

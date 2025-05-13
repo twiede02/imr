@@ -3,7 +3,6 @@
 
 int main() {
     glfwInit();
-    glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
 
@@ -35,8 +34,10 @@ int main() {
                  1, tmp(image.whole_image_subresource_range()));
         });
 
+        // This tracks the fps (cpu-side)
         fps_counter.tick();
         fps_counter.updateGlfwWindowTitle(window);
+        // We need to call this to know if someone tried to close the window
         glfwPollEvents();
     }
 

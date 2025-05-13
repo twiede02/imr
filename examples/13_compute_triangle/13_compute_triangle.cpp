@@ -33,7 +33,6 @@ int main() {
 
     auto& vk = device.dispatch;
     while (!glfwWindowShouldClose(window)) {
-        uint64_t now = imr_get_time_nano();
         fps_counter.tick();
         fps_counter.updateGlfwWindowTitle(window);
 
@@ -45,6 +44,9 @@ int main() {
                 .float32 = { 0.0f, 0.0f, 0.0f, 1.0f},
             }), 1, tmp(image.whole_image_subresource_range()));
 
+            // This barrier doesn't change the layout of the image, and instead just ensures that the clear is finished before we run the dispatch.
+            // before: all writes from the "transfer" stage (to which the clear command belongs)
+            // after: all writes from the "compute" stage
             vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
@@ -67,16 +69,18 @@ int main() {
             shader_bind_helper->set_storage_image(0, 0, image);
             shader_bind_helper->commit(cmdbuf);
 
+            // update the push constant data on the host...
             push_constants.tri = {
                 { -0.5, 0.5 },
                 { 0.0, -0.5 },
                 { 0.5, 0.5 }
             };
             push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
+            // copy it to the command buffer!
             vkCmdPushConstants(cmdbuf, shader.layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants), &push_constants);
 
+            // dispatch like before
             vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
-
             context.addCleanupAction([=, &device]() {
                 delete shader_bind_helper;
             });
