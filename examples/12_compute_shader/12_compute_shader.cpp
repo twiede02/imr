@@ -38,7 +38,6 @@ int main() {
     }), nullptr, &pool);
 
     while (!glfwWindowShouldClose(window)) {
-        uint64_t now = imr_get_time_nano();
         fps_counter.tick();
         fps_counter.updateGlfwWindowTitle(window);
 
