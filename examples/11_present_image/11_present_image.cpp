@@ -40,7 +40,5 @@ int main() {
         glfwPollEvents();
     }
 
-    vkDeviceWaitIdle(device.device);
-
     return 0;
 }

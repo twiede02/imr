@@ -12,31 +12,17 @@ struct vec2 { float x, y; };
 struct Tri { vec2 v0, v1, v2; };
 
 int main() {
-    imr::Context context;
-    imr::Device device(context);
-    auto& vk = device.dispatch;
-
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
+
+    imr::Context context;
+    imr::Device device(context);
     imr::Swapchain swapchain(device, window);
-
     imr::FpsCounter fps_counter;
-
     imr::ComputeShader shader(device, "12_compute_shader.spv");
 
-    VkDescriptorPool pool;
-    vkCreateDescriptorPool(vk.device, tmp((VkDescriptorPoolCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-        .maxSets = 256,
-        .poolSizeCount = 1,
-        .pPoolSizes = tmp((VkDescriptorPoolSize) {
-            .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            .descriptorCount = 256,
-        }),
-    }), nullptr, &pool);
-
+    auto& vk = device.dispatch;
     while (!glfwWindowShouldClose(window)) {
         fps_counter.tick();
         fps_counter.updateGlfwWindowTitle(window);
@@ -45,36 +31,7 @@ int main() {
             auto& image = context.image();
             auto cmdbuf = context.cmdbuf();
 
-            VkImageView view;
-            vkCreateImageView(device.device, tmp((VkImageViewCreateInfo) {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .image = image.handle(),
-                .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format = swapchain.format(),
-                .subresourceRange = image.whole_image_subresource_range(),
-            }), nullptr, &view);
-
-            VkDescriptorSet set;
-            vkAllocateDescriptorSets(device.device, tmp((VkDescriptorSetAllocateInfo) {
-                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-                .descriptorPool = pool,
-                .descriptorSetCount = 1,
-                .pSetLayouts = tmp(shader.set_layout(0)),
-            }), &set);
-
-            vkUpdateDescriptorSets(device.device, 1, tmp((VkWriteDescriptorSet) {
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = set,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                .pImageInfo = tmp((VkDescriptorImageInfo) {
-                    .sampler = VK_NULL_HANDLE,
-                    .imageView = view,
-                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-                }),
-            }), 0, nullptr);
-
-            vk.cmdClearColorImage(cmdbuf, image.handle(), VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
+            vkCmdClearColorImage(cmdbuf, image.handle(), VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
                 .float32 = { 0.0f, 0.0f, 0.0f, 1.0f},
             }), 1, tmp(image.whole_image_subresource_range()));
 
@@ -95,14 +52,15 @@ int main() {
                 }),
             }));
 
-            vk.cmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
-            vk.cmdBindDescriptorSets(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.layout(), 0, 1, &set, 0, nullptr);
+            vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
+            auto shader_bind_helper = shader.create_bind_helper();
+            shader_bind_helper->set_storage_image(0, 0, image);
+            shader_bind_helper->commit(cmdbuf);
 
-            vk.cmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
+            vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
 
             context.addCleanupAction([=, &device]() {
-                vkDestroyImageView(device.device, view, nullptr);
-                vkFreeDescriptorSets(device.device, pool, 1, &set);
+                delete shader_bind_helper;
             });
         });
 
@@ -110,8 +68,5 @@ int main() {
     }
 
     swapchain.drain();
-
-    vkDestroyDescriptorPool(device.device, pool, nullptr);
-
     return 0;
 }

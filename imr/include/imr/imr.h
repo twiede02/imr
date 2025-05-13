@@ -17,151 +17,171 @@ template<typename T>
 inline T* tmp(T&& t) { return &t; }
 
 namespace imr {
-    struct Context {
-        Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom = [](auto&) {});
-        Context(Context&) = delete;
-        ~Context();
 
-        vkb::Instance instance;
-        vkb::InstanceDispatchTable dispatch;
+struct Context {
+    Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom = [](auto&) {});
+    Context(Context&) = delete;
+    ~Context();
 
-        std::vector<vkb::PhysicalDevice> available_devices(std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
-    };
+    vkb::Instance instance;
+    vkb::InstanceDispatchTable dispatch;
 
-    struct Device {
-        Device(Context&, std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
-        Device(Context&, vkb::PhysicalDevice);
-        Device(Device&) = delete;
-        ~Device();
+    std::vector<vkb::PhysicalDevice> available_devices(std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
+};
 
-        Context& context;
+struct Device {
+    Device(Context&, std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
+    Device(Context&, vkb::PhysicalDevice);
+    Device(Device&) = delete;
+    ~Device();
 
-        vkb::PhysicalDevice physical_device;
-        vkb::Device device;
+    Context& context;
 
-        VkQueue main_queue;
-        uint32_t main_queue_idx;
+    vkb::PhysicalDevice physical_device;
+    vkb::Device device;
 
-        VkCommandPool pool;
+    VkQueue main_queue;
+    uint32_t main_queue_idx;
 
-        vkb::DispatchTable dispatch;
+    VkCommandPool pool;
 
-        class Impl;
-        std::unique_ptr<Impl> _impl;
-    };
+    vkb::DispatchTable dispatch;
 
-    struct Buffer {
-        Buffer(Device&, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_property = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-        Buffer(Buffer&) = delete;
-        ~Buffer();
+    class Impl;
+    std::unique_ptr<Impl> _impl;
+};
 
-        size_t const size;
-        VkBuffer handle;
-        /// 64-bit virtual address of the buffer on the GPU
-        VkDeviceAddress device_address;
-        /// Managed by the allocator, required for mapping the buffer
-        VkDeviceMemory memory;
-        size_t memory_offset;
+struct Buffer {
+    Buffer(Device&, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_property = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    Buffer(Buffer&) = delete;
+    ~Buffer();
 
-        struct Impl;
-        std::unique_ptr<Impl> _impl;
-    };
+    size_t const size;
+    VkBuffer handle;
+    /// 64-bit virtual address of the buffer on the GPU
+    VkDeviceAddress device_address;
+    /// Managed by the allocator, required for mapping the buffer
+    VkDeviceMemory memory;
+    size_t memory_offset;
 
-    struct Image {
-        VkImage handle() const;
+    struct Impl;
+    std::unique_ptr<Impl> _impl;
+};
 
-        VkImageType dim() const;
-        VkExtent3D size() const;
-        VkFormat format() const;
+struct Image {
+    VkImage handle() const;
 
-        Image(Device&, VkImageType dim, VkExtent3D size, VkFormat format, VkImageUsageFlagBits usage);
-        Image(Image&) = delete;
-        Image(Image&&);
-        //Image& operator=(Image&& other) = default;
-        ~Image();
+    VkImageType dim() const;
+    VkExtent3D size() const;
+    VkFormat format() const;
 
-        VkImageSubresourceRange whole_image_subresource_range() const;
+    Image(Device&, VkImageType dim, VkExtent3D size, VkFormat format, VkImageUsageFlagBits usage);
+    Image(Image&) = delete;
+    Image(Image&&);
+    //Image& operator=(Image&& other) = default;
+    ~Image();
 
-        struct Impl;
-        Image(Impl&&);
-    private:
-        std::unique_ptr<Impl> _impl;
-    };
+    VkImageSubresourceRange whole_image_subresource_range() const;
 
-    struct ComputeShader {
-        ComputeShader(Device&, std::string&& name, std::string&& entrypoint_name = "main");
-        ComputeShader(ComputeShader&) = delete;
-        ~ComputeShader();
+    struct Impl;
+    Image(Impl&&);
+private:
+    std::unique_ptr<Impl> _impl;
+};
 
-        VkPipeline pipeline() const;
-        VkPipelineLayout layout() const;
-        VkDescriptorSetLayout set_layout(unsigned) const;
+/// Helper class that allocates, populates and binds descriptor sets for us
+/// Since it owns the descriptor sets internally, it must live as they are in use
+/// Therefore, it should not be stack-allocated inside e.g. the beginFrame lambda !
+struct DescriptorBindHelper {
+    class Impl;
 
-        struct Impl;
-        std::unique_ptr<Impl> _impl;
-    };
+    explicit DescriptorBindHelper(std::unique_ptr<Impl>&&);
+    DescriptorBindHelper(DescriptorBindHelper&) = delete;
+    ~DescriptorBindHelper();
 
-    struct Swapchain {
-        Swapchain(Device&, GLFWwindow* window);
-        ~Swapchain();
+    void set_storage_image(uint32_t set, uint32_t binding, Image& image, std::optional<VkImageSubresourceRange> = std::nullopt, std::optional<VkImageViewType> = std::nullopt);
+    void commit(VkCommandBuffer);
 
-        Device& device() const;
-        VkFormat format() const;
-        int maxFps = 999;
+    std::unique_ptr<Impl> _impl;
+};
 
-        struct Frame {
-            void presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem);
-            void presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
+struct ComputeShader {
+    ComputeShader(Device&, std::string&& name, std::string&& entrypoint_name = "main");
+    ComputeShader(ComputeShader&) = delete;
+    ~ComputeShader();
 
-            size_t id;
-            Image& image() const;
-            VkSemaphore swapchain_image_available;
-            VkSemaphore signal_when_ready;
-            void present();
+    VkPipeline pipeline() const;
+    VkPipelineLayout layout() const;
+    VkDescriptorSetLayout set_layout(unsigned) const;
 
-            void add_to_delete_queue(std::optional<VkFence> fence, std::function<void(void)>&& fn);
+    DescriptorBindHelper* create_bind_helper();
 
-            class Impl;
-            std::unique_ptr<Impl> _impl;
+    struct Impl;
+    std::unique_ptr<Impl> _impl;
+};
 
-            Frame(Impl&&);
-            Frame(Frame&) = delete;
-            ~Frame();
-        };
+struct Swapchain {
+    Swapchain(Device&, GLFWwindow* window);
+    ~Swapchain();
 
-        void beginFrame(std::function<void(Swapchain::Frame&)>&& fn);
+    Device& device() const;
+    VkFormat format() const;
+    int maxFps = 999;
 
-        struct SimplifiedRenderContext {
-            virtual Image& image() const = 0;
-            virtual VkCommandBuffer cmdbuf() const = 0;
+    struct Frame {
+        void presentFromBuffer(VkBuffer buffer, VkFence signal_when_reusable, std::optional<VkSemaphore> sem);
+        void presentFromImage(VkImage image, VkFence signal_when_reusable, std::optional<VkSemaphore> sem, VkImageLayout src_layout = VK_IMAGE_LAYOUT_GENERAL, std::optional<VkExtent2D> image_size = std::nullopt);
 
-            virtual void addCleanupAction(std::function<void(void)>&& fn) = 0;
-        };
+        size_t id;
+        Image& image() const;
+        VkSemaphore swapchain_image_available;
+        VkSemaphore signal_when_ready;
+        void present();
 
-        void renderFrameSimplified(std::function<void(SimplifiedRenderContext&)>&& fn);
-
-        void resize();
-
-        /// Waits until all the in-flight frames are done and runs their cleanup jobs
-        void drain();
+        void add_to_delete_queue(std::optional<VkFence> fence, std::function<void(void)>&& fn);
 
         class Impl;
         std::unique_ptr<Impl> _impl;
+
+        Frame(Impl&&);
+        Frame(Frame&) = delete;
+        ~Frame();
     };
 
-    struct FpsCounter {
-        FpsCounter();
-        FpsCounter(FpsCounter&) = delete;
-        ~FpsCounter();
+    void beginFrame(std::function<void(Swapchain::Frame&)>&& fn);
 
-        void tick();
-        int average_fps();
-        float average_frametime();
-        void updateGlfwWindowTitle(GLFWwindow*);
+    struct SimplifiedRenderContext {
+        virtual Image& image() const = 0;
+        virtual VkCommandBuffer cmdbuf() const = 0;
 
-        class Impl;
-        std::unique_ptr<Impl> _impl;
+        virtual void addCleanupAction(std::function<void(void)>&& fn) = 0;
     };
+
+    void renderFrameSimplified(std::function<void(SimplifiedRenderContext&)>&& fn);
+
+    void resize();
+
+    /// Waits until all the in-flight frames are done and runs their cleanup jobs
+    void drain();
+
+    class Impl;
+    std::unique_ptr<Impl> _impl;
+};
+
+struct FpsCounter {
+    FpsCounter();
+    FpsCounter(FpsCounter&) = delete;
+    ~FpsCounter();
+
+    void tick();
+    int average_fps();
+    float average_frametime();
+    void updateGlfwWindowTitle(GLFWwindow*);
+
+    class Impl;
+    std::unique_ptr<Impl> _impl;
+};
+
 }
 
 #endif
