@@ -110,6 +110,7 @@ namespace imr {
         Swapchain(Device&, GLFWwindow* window);
         ~Swapchain();
 
+        Device& device() const;
         VkFormat format() const;
         int maxFps = 999;
 
@@ -134,6 +135,15 @@ namespace imr {
         };
 
         void beginFrame(std::function<void(Swapchain::Frame&)>&& fn);
+
+        struct SimplifiedRenderContext {
+            virtual Image& image() const = 0;
+            virtual VkCommandBuffer cmdbuf() const = 0;
+
+            virtual void addCleanupAction(std::function<void(void)>&& fn) = 0;
+        };
+
+        void renderFrameSimplified(std::function<void(SimplifiedRenderContext&)>&& fn);
 
         void resize();
 

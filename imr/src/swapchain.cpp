@@ -113,6 +113,8 @@ Swapchain::Impl::~Impl() {
     vkDestroySurfaceKHR(device.context.dispatch.instance, surface, nullptr);
 }
 
+Device& Swapchain::device() const { return _impl->device; }
+
 VkFormat Swapchain::format() const {
     return _impl->swapchain.image_format;
 }

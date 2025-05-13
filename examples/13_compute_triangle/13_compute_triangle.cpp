@@ -51,8 +51,9 @@ int main() {
         fps_counter.tick();
         fps_counter.updateGlfwWindowTitle(window);
 
-        swapchain.beginFrame([&](imr::Swapchain::Frame& frame) {
-            auto& image = frame.image();
+        swapchain.renderFrameSimplified([&](imr::Swapchain::SimplifiedRenderContext& context) {
+            auto& image = context.image();
+            auto cmdbuf = context.cmdbuf();
 
             VkImageView view;
             vkCreateImageView(device.device, tmp((VkImageViewCreateInfo) {
@@ -82,36 +83,6 @@ int main() {
                     .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                 }),
             }), 0, nullptr);
-
-            VkCommandBuffer cmdbuf;
-            vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
-                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-                .commandPool = device.pool,
-                .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-                .commandBufferCount = 1,
-            }), &cmdbuf);
-
-            vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
-                .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-                .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-            }));
-
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
-                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                .dependencyFlags = 0,
-                .imageMemoryBarrierCount = 1,
-                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
-                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                    .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
-                    .srcAccessMask = VK_ACCESS_2_NONE,
-                    .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                    .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                    .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                    .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .image = image.handle(),
-                    .subresourceRange = image.whole_image_subresource_range()
-                }),
-            }));
 
             vk.cmdClearColorImage(cmdbuf, image.handle(), VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
                 .float32 = { 0.0f, 0.0f, 0.0f, 1.0f},
@@ -147,42 +118,10 @@ int main() {
             vk.cmdPushConstants(cmdbuf, shader.layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants), &push_constants);
             vk.cmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
 
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
-                .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                .dependencyFlags = 0,
-                .imageMemoryBarrierCount = 1,
-                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
-                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                    .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                    .srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-                    .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-                    .dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT,
-                    .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                    .image = image.handle(),
-                    .subresourceRange = image.whole_image_subresource_range()
-                }),
-            }));
-
-            vkEndCommandBuffer(cmdbuf);
-            vk.queueSubmit(device.main_queue, 1, tmp((VkSubmitInfo) {
-                .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-                .waitSemaphoreCount = 1,
-                .pWaitSemaphores = &frame.swapchain_image_available,
-                .pWaitDstStageMask = tmp((VkPipelineStageFlags) { VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT }),
-                .commandBufferCount = 1,
-                .pCommandBuffers = &cmdbuf,
-                .signalSemaphoreCount = 1,
-                .pSignalSemaphores = &frame.signal_when_ready,
-            }), VK_NULL_HANDLE);
-
-            frame.add_to_delete_queue(std::nullopt, [=, &device]() {
+            context.addCleanupAction([=, &device]() {
                 vkDestroyImageView(device.device, view, nullptr);
                 vkFreeDescriptorSets(device.device, pool, 1, &set);
-                vkFreeCommandBuffers(device.device, device.pool, 1, &cmdbuf);
             });
-
-            frame.present();
         });
 
         glfwPollEvents();
