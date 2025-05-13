@@ -71,7 +71,7 @@ struct Buffer {
 struct Image {
     VkImage handle() const;
 
-    VkImageType dim() const;
+    VkImageType type() const;
     VkExtent3D size() const;
     VkFormat format() const;
 

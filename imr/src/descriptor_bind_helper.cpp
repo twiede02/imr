@@ -98,7 +98,7 @@ void DescriptorBindHelper::set_storage_image(uint32_t set, uint32_t binding, Ima
     assert(!_impl->committed);
     auto& device = _impl->device;
 
-    VkImageViewType final_image_view_type = image_view_type ? *image_view_type : image_type_to_view_type(image.dim());
+    VkImageViewType final_image_view_type = image_view_type ? *image_view_type : image_type_to_view_type(image.type());
     VkImageSubresourceRange subresource_range = subresource ? *subresource : image.whole_image_subresource_range();
 
     VkImageView view;

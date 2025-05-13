@@ -5,19 +5,19 @@ namespace imr {
 struct Image::Impl {
     Device& device;
     VkImage handle;
-    VkImageType dim;
+    VkImageType type;
     VkExtent3D size;
     VkFormat format;
     std::optional<VmaAllocation> vma_allocation;
 
-    Impl(Device& device, VkImageType dim, VkExtent3D size, VkFormat format)
-    : device(device), handle(VK_NULL_HANDLE), dim(dim), size(size), format(format) {}
-    Impl(Device& device, VkImage existing_handle, VkImageType dim, VkExtent3D size, VkFormat format)
-    : device(device), handle(existing_handle), dim(dim), size(size), format(format) {}
+    Impl(Device& device, VkImageType type, VkExtent3D size, VkFormat format)
+    : device(device), handle(VK_NULL_HANDLE), type(type), size(size), format(format) {}
+    Impl(Device& device, VkImage existing_handle, VkImageType type, VkExtent3D size, VkFormat format)
+    : device(device), handle(existing_handle), type(type), size(size), format(format) {}
 };
 
 VkImage Image::handle() const { return _impl->handle; }
-VkImageType Image::dim() const { return _impl->dim; }
+VkImageType Image::type() const { return _impl->type; }
 VkExtent3D Image::size() const { return _impl->size; }
 VkFormat Image::format() const { return _impl->format; }
 
