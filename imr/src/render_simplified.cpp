@@ -30,13 +30,13 @@ void Swapchain::renderFrameSimplified(std::function<void(SimplifiedRenderContext
 
         // Allocate and begin recording a command buffer
         VkCommandBuffer cmdbuf;
-        vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
+        vkAllocateCommandBuffers(device.device, tmpPtr((VkCommandBufferAllocateInfo) {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
             .commandPool = device.pool,
             .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
             .commandBufferCount = 1,
         }), &cmdbuf);
-        vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
+        vkBeginCommandBuffer(cmdbuf, tmpPtr((VkCommandBufferBeginInfo) {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
             .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
         }));
@@ -44,11 +44,11 @@ void Swapchain::renderFrameSimplified(std::function<void(SimplifiedRenderContext
         // This barrier transitions the image from an unknown state into the "general" layout so we can render to it.
         // before the barrier: nothing relevant happens
         // after the barrier: all writes from any pipeline stage
-        vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+        vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
             .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
             .dependencyFlags = 0,
             .imageMemoryBarrierCount = 1,
-            .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+            .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                 .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
                 .srcAccessMask = VK_ACCESS_2_NONE,
@@ -68,11 +68,11 @@ void Swapchain::renderFrameSimplified(std::function<void(SimplifiedRenderContext
         // This barrier transitions the image from the "general" layout into the "present src" layout so it can be shown
         // before the barrier: all writes from any pipeline stage
         // after the barrier: all reads from the present stage
-        vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+        vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
             .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
             .dependencyFlags = 0,
             .imageMemoryBarrierCount = 1,
-            .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+            .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                 .srcStageMask = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                 .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
@@ -87,7 +87,7 @@ void Swapchain::renderFrameSimplified(std::function<void(SimplifiedRenderContext
 
         // Create a fence so we can track the execution of the cmdbuf
         VkFence fence;
-        vkCreateFence(device.device, tmp((VkFenceCreateInfo) {
+        vkCreateFence(device.device, tmpPtr((VkFenceCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
             .flags = 0,
         }), nullptr, &fence);
@@ -96,11 +96,11 @@ void Swapchain::renderFrameSimplified(std::function<void(SimplifiedRenderContext
         // before: wait on the swapchain image to be available
         // after: notify the swapchain that the image can be shown
         vkEndCommandBuffer(cmdbuf);
-        vkQueueSubmit(device.main_queue, 1, tmp((VkSubmitInfo) {
+        vkQueueSubmit(device.main_queue, 1, tmpPtr((VkSubmitInfo) {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
             .waitSemaphoreCount = 1,
             .pWaitSemaphores = &frame.swapchain_image_available,
-            .pWaitDstStageMask = tmp((VkPipelineStageFlags) VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT),
+            .pWaitDstStageMask = tmpPtr((VkPipelineStageFlags) VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT),
             .commandBufferCount = 1,
             .pCommandBuffers = &cmdbuf,
             .signalSemaphoreCount = 1,

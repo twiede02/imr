@@ -14,7 +14,9 @@
 #define CHECK_VK(op, else) if (op != VK_SUCCESS) { fprintf(stderr, "Check failed at %s\n", #op); else; }
 
 template<typename T>
-inline T* tmp(T&& t) { return &t; }
+/// A lot of Vulkan calls require pointers to structures, but often the data we want to provide is just some expression.
+/// This utility method is used to leak the address of a temporary, which in C++ is specified to live for the duration of the statement
+inline T* tmpPtr(T&& t) { return &t; }
 
 namespace imr {
 

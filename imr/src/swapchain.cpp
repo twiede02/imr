@@ -15,22 +15,22 @@ SwapchainSlot::SwapchainSlot(Swapchain& s) : swapchain(s) {
     auto& device = s._impl->device;
     auto& vk = device.dispatch;
 
-    CHECK_VK_THROW(vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
+    CHECK_VK_THROW(vkCreateSemaphore(device.device, tmpPtr((VkSemaphoreCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
     }), nullptr, &copy_done));
 
-    vk.setDebugUtilsObjectNameEXT(tmp((VkDebugUtilsObjectNameInfoEXT) {
+    vk.setDebugUtilsObjectNameEXT(tmpPtr((VkDebugUtilsObjectNameInfoEXT) {
         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
         .objectType = VK_OBJECT_TYPE_SEMAPHORE,
         .objectHandle = reinterpret_cast<uint64_t>(copy_done),
         .pObjectName = "SwapchainSlot::copy_done"
     }));
 
-    CHECK_VK_THROW(vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
+    CHECK_VK_THROW(vkCreateSemaphore(device.device, tmpPtr((VkSemaphoreCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
     }), nullptr, &present_semaphore));
 
-    vk.setDebugUtilsObjectNameEXT(tmp((VkDebugUtilsObjectNameInfoEXT) {
+    vk.setDebugUtilsObjectNameEXT(tmpPtr((VkDebugUtilsObjectNameInfoEXT) {
         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
         .objectType = VK_OBJECT_TYPE_SEMAPHORE,
         .objectHandle = reinterpret_cast<uint64_t>(copy_done),
@@ -127,11 +127,11 @@ std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(Swapcha
     uint32_t image_index;
 
     VkSemaphore image_acquired_semaphore;
-    CHECK_VK_THROW(vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
+    CHECK_VK_THROW(vkCreateSemaphore(device.device, tmpPtr((VkSemaphoreCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
     }), nullptr, &image_acquired_semaphore));
 
-    vk.setDebugUtilsObjectNameEXT(tmp((VkDebugUtilsObjectNameInfoEXT) {
+    vk.setDebugUtilsObjectNameEXT(tmpPtr((VkDebugUtilsObjectNameInfoEXT) {
         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
         .objectType = VK_OBJECT_TYPE_SEMAPHORE,
         .objectHandle = reinterpret_cast<uint64_t>(image_acquired_semaphore),
@@ -139,7 +139,7 @@ std::optional<std::tuple<SwapchainSlot&, VkSemaphore>> nextSwapchainSlot(Swapcha
     }));
 
     VkFence fence;
-    CHECK_VK_THROW(vkCreateFence(device.device, tmp((VkFenceCreateInfo) {
+    CHECK_VK_THROW(vkCreateFence(device.device, tmpPtr((VkFenceCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
     }), nullptr, &fence));
 

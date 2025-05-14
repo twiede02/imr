@@ -40,18 +40,18 @@ int main() {
             auto& image = context.image();
             auto cmdbuf = context.cmdbuf();
 
-            vk.cmdClearColorImage(cmdbuf, image.handle(), VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
-                .float32 = { 0.0f, 0.0f, 0.0f, 1.0f},
-            }), 1, tmp(image.whole_image_subresource_range()));
+            vk.cmdClearColorImage(cmdbuf, image.handle(), VK_IMAGE_LAYOUT_GENERAL, tmpPtr((VkClearColorValue) {
+                .float32 = { 0.0f, 0.0f, 0.0f, 1.0f },
+            }), 1, tmpPtr(image.whole_image_subresource_range()));
 
             // This barrier doesn't change the layout of the image, and instead just ensures that the clear is finished before we run the dispatch.
             // before: all writes from the "transfer" stage (to which the clear command belongs)
             // after: all writes from the "compute" stage
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
                 .imageMemoryBarrierCount = 1,
-                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
                     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                     .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                     .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,

@@ -22,7 +22,7 @@ int main() {
     imr::Swapchain swapchain(device, window);
 
     VkFence fence;
-    vkCreateFence(device.device, tmp((VkFenceCreateInfo) {
+    vkCreateFence(device.device, tmpPtr((VkFenceCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     }), nullptr, &fence);
@@ -32,12 +32,12 @@ int main() {
     imr::ComputeShader shader(device, "present_from_image.spv");
 
     VkDescriptorPool pool;
-    vkCreateDescriptorPool(vk.device, tmp((VkDescriptorPoolCreateInfo) {
+    vkCreateDescriptorPool(vk.device, tmpPtr((VkDescriptorPoolCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
         .maxSets = 256,
         .poolSizeCount = 1,
-        .pPoolSizes = tmp((VkDescriptorPoolSize) {
+        .pPoolSizes = tmpPtr((VkDescriptorPoolSize) {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             .descriptorCount = 256,
         }),
@@ -49,7 +49,7 @@ int main() {
     auto image = new imr::Image (device, VK_IMAGE_TYPE_2D, extents, VK_FORMAT_R8G8B8A8_UNORM, (VkImageUsageFlagBits) (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT));
 
     VkImageView view;
-    vkCreateImageView(device.device, tmp((VkImageViewCreateInfo) {
+    vkCreateImageView(device.device, tmpPtr((VkImageViewCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = image->handle(),
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
@@ -58,19 +58,19 @@ int main() {
     }), nullptr, &view);
 
     VkDescriptorSet set;
-    vkAllocateDescriptorSets(device.device, tmp((VkDescriptorSetAllocateInfo) {
+    vkAllocateDescriptorSets(device.device, tmpPtr((VkDescriptorSetAllocateInfo) {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
         .descriptorPool = pool,
         .descriptorSetCount = 1,
-        .pSetLayouts = tmp(shader.set_layout(0)),
+        .pSetLayouts = tmpPtr(shader.set_layout(0)),
     }), &set);
 
-    vkUpdateDescriptorSets(device.device, 1, tmp((VkWriteDescriptorSet) {
+    vkUpdateDescriptorSets(device.device, 1, tmpPtr((VkWriteDescriptorSet) {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = set,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-        .pImageInfo = tmp((VkDescriptorImageInfo) {
+        .pImageInfo = tmpPtr((VkDescriptorImageInfo) {
             .sampler = VK_NULL_HANDLE,
             .imageView = view,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
@@ -87,27 +87,27 @@ int main() {
             vkResetFences(device.device, 1, &fence);
 
             VkCommandBuffer cmdbuf;
-            vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
+            vkAllocateCommandBuffers(device.device, tmpPtr((VkCommandBufferAllocateInfo) {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
                 .commandPool = device.pool,
                 .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
                 .commandBufferCount = 1,
             }), &cmdbuf);
 
-            vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
+            vkBeginCommandBuffer(cmdbuf, tmpPtr((VkCommandBufferBeginInfo) {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                 .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
             }));
 
             VkSemaphore sem;
-            vkCreateSemaphore(device.device, tmp((VkSemaphoreCreateInfo) {
+            vkCreateSemaphore(device.device, tmpPtr((VkSemaphoreCreateInfo) {
                 .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
             }), nullptr, &sem);
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
                 .imageMemoryBarrierCount = 1,
-                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
                     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                     .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
                     .srcAccessMask = VK_ACCESS_2_NONE,
@@ -120,15 +120,15 @@ int main() {
                 }),
             }));
 
-            vk.cmdClearColorImage(cmdbuf, image->handle(), VK_IMAGE_LAYOUT_GENERAL, tmp((VkClearColorValue) {
-                .float32 = { 0.0f, 0.0f, 0.0f, 1.0f},
-            }), 1, tmp(image->whole_image_subresource_range()));
+            vk.cmdClearColorImage(cmdbuf, image->handle(), VK_IMAGE_LAYOUT_GENERAL, tmpPtr((VkClearColorValue) {
+                .float32 = { 0.0f, 0.0f, 0.0f, 1.0f },
+            }), 1, tmpPtr(image->whole_image_subresource_range()));
 
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
                 .imageMemoryBarrierCount = 1,
-                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
                     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                     .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                     .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
@@ -146,11 +146,11 @@ int main() {
 
             vk.cmdDispatch(cmdbuf, (image->size().width + 31) / 32, (image->size().height + 31) / 32, 1);
 
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
                 .imageMemoryBarrierCount = 1,
-                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
                     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                     .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                     .srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
@@ -164,7 +164,7 @@ int main() {
             }));
 
             vkEndCommandBuffer(cmdbuf);
-            vk.queueSubmit(device.main_queue, 1, tmp((VkSubmitInfo) {
+            vk.queueSubmit(device.main_queue, 1, tmpPtr((VkSubmitInfo) {
                 .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                 .waitSemaphoreCount = 0,
                 .commandBufferCount = 1,

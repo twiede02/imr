@@ -40,7 +40,7 @@ struct DescriptorBindHelper::Impl {
             pool_sizes.push_back(size);
         }
 
-        vkCreateDescriptorPool(vk.device, tmp((VkDescriptorPoolCreateInfo) {
+        vkCreateDescriptorPool(vk.device, tmpPtr((VkDescriptorPoolCreateInfo) {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
             .maxSets = static_cast<uint32_t>(layout.set_layouts.size()),
@@ -54,7 +54,7 @@ struct DescriptorBindHelper::Impl {
     // Lazily allocates the set if we need it
     VkDescriptorSet get_or_create_set(unsigned set) {
         if (sets[set] == 0) {
-            CHECK_VK_THROW(vkAllocateDescriptorSets(device.device, tmp((VkDescriptorSetAllocateInfo) {
+            CHECK_VK_THROW(vkAllocateDescriptorSets(device.device, tmpPtr((VkDescriptorSetAllocateInfo) {
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                 .descriptorPool = pool,
                 .descriptorSetCount = 1,
@@ -102,7 +102,7 @@ void DescriptorBindHelper::set_storage_image(uint32_t set, uint32_t binding, Ima
     VkImageSubresourceRange subresource_range = subresource ? *subresource : image.whole_image_subresource_range();
 
     VkImageView view;
-    vkCreateImageView(device.device, tmp((VkImageViewCreateInfo) {
+    vkCreateImageView(device.device, tmpPtr((VkImageViewCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .image = image.handle(),
         .viewType = final_image_view_type,
@@ -110,13 +110,13 @@ void DescriptorBindHelper::set_storage_image(uint32_t set, uint32_t binding, Ima
         .subresourceRange = subresource_range,
     }), nullptr, &view);
 
-    vkUpdateDescriptorSets(device.device, 1, tmp((VkWriteDescriptorSet) {
+    vkUpdateDescriptorSets(device.device, 1, tmpPtr((VkWriteDescriptorSet) {
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = _impl->get_or_create_set(set),
         .dstBinding = binding,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-        .pImageInfo = tmp((VkDescriptorImageInfo) {
+        .pImageInfo = tmpPtr((VkDescriptorImageInfo) {
             .sampler = VK_NULL_HANDLE,
             .imageView = view,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,

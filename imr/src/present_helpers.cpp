@@ -16,23 +16,23 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_re
         semaphores.push_back(*sem);
 
     VkCommandBuffer cmdbuf;
-    CHECK_VK_THROW(vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
+    CHECK_VK_THROW(vkAllocateCommandBuffers(device.device, tmpPtr((VkCommandBufferAllocateInfo) {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .commandPool = device.pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
     }), &cmdbuf));
 
-    CHECK_VK_THROW(vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
+    CHECK_VK_THROW(vkBeginCommandBuffer(cmdbuf, tmpPtr((VkCommandBufferBeginInfo) {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     })));
 
-    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+    vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .dependencyFlags = 0,
         .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+        .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
             .srcAccessMask = VK_ACCESS_2_NONE,
@@ -49,7 +49,7 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_re
         }),
     }));
     VkExtent2D src_size = swapchain._impl->swapchain.extent;
-    vkCmdCopyBufferToImage(cmdbuf, buffer, slot.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, tmp((VkBufferImageCopy) {
+    vkCmdCopyBufferToImage(cmdbuf, buffer, slot.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, tmpPtr((VkBufferImageCopy) {
         .imageSubresource = {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .layerCount = 1,
@@ -60,11 +60,11 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_re
             .depth = 1
         }
     }));
-    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+    vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .dependencyFlags = 0,
         .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+        .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
             .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
@@ -86,7 +86,7 @@ void Swapchain::Frame::presentFromBuffer(VkBuffer buffer, VkFence signal_when_re
         stage_flags.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
     vkEndCommandBuffer(cmdbuf);
-    vkQueueSubmit(device.main_queue, 1, tmp((VkSubmitInfo) {
+    vkQueueSubmit(device.main_queue, 1, tmpPtr((VkSubmitInfo) {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = static_cast<uint32_t>(semaphores.size()),
         .pWaitSemaphores = semaphores.data(),
@@ -119,23 +119,23 @@ void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusa
     assert(signal_when_reusable != VK_NULL_HANDLE);
 
     VkCommandBuffer cmdbuf;
-    vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
+    vkAllocateCommandBuffers(device.device, tmpPtr((VkCommandBufferAllocateInfo) {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .commandPool = device.pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
     }), &cmdbuf);
 
-    vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
+    vkBeginCommandBuffer(cmdbuf, tmpPtr((VkCommandBufferBeginInfo) {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     }));
 
-    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+    vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .dependencyFlags = 0,
         .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+        .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
             .srcAccessMask = VK_ACCESS_2_NONE,
@@ -156,7 +156,7 @@ void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusa
         src_size = *image_size;
     else
         src_size = swapchain._impl->swapchain.extent;
-    vkCmdBlitImage(cmdbuf, image, src_layout, slot.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, tmp((VkImageBlit) {
+    vkCmdBlitImage(cmdbuf, image, src_layout, slot.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, tmpPtr((VkImageBlit) {
         .srcSubresource = {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .layerCount = 1,
@@ -182,11 +182,11 @@ void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusa
             },
         }
     }), VK_FILTER_LINEAR);
-    vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+    vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .dependencyFlags = 0,
         .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+        .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
             .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
             .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
             .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
@@ -208,7 +208,7 @@ void Swapchain::Frame::presentFromImage(VkImage image, VkFence signal_when_reusa
         stage_flags.emplace_back(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 
     vkEndCommandBuffer(cmdbuf);
-    vkQueueSubmit(device.main_queue, 1, tmp((VkSubmitInfo) {
+    vkQueueSubmit(device.main_queue, 1, tmpPtr((VkSubmitInfo) {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = static_cast<uint32_t>(semaphores.size()),
         .pWaitSemaphores = semaphores.data(),

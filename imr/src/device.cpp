@@ -64,12 +64,12 @@ Device::Device(imr::Context& context, vkb::PhysicalDevice physical_device) : con
     main_queue_idx = device.get_queue_index(vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)).value();
     main_queue = device.get_queue(vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)).value();
 
-    CHECK_VK(vkCreateCommandPool(device, tmp((VkCommandPoolCreateInfo) {
+    CHECK_VK(vkCreateCommandPool(device, tmpPtr((VkCommandPoolCreateInfo) {
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .queueFamilyIndex = main_queue_idx,
     }), nullptr, &pool), throw std::runtime_error("failed to create cmdpool"));
 
-    CHECK_VK(vmaCreateAllocator(tmp((VmaAllocatorCreateInfo) {
+    CHECK_VK(vmaCreateAllocator(tmpPtr((VmaAllocatorCreateInfo) {
         .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
         .physicalDevice = physical_device,
         .device = device,

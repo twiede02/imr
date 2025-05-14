@@ -524,14 +524,14 @@ int main(int argc, char ** argv) {
             auto& image = frame.image();
 
             VkCommandBuffer cmdbuf;
-            vkAllocateCommandBuffers(device.device, tmp((VkCommandBufferAllocateInfo) {
+            vkAllocateCommandBuffers(device.device, tmpPtr((VkCommandBufferAllocateInfo) {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
                 .commandPool = device.pool,
                 .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
                 .commandBufferCount = 1,
             }), &cmdbuf);
 
-            vkBeginCommandBuffer(cmdbuf, tmp((VkCommandBufferBeginInfo) {
+            vkBeginCommandBuffer(cmdbuf, tmpPtr((VkCommandBufferBeginInfo) {
                 .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
                 .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
             }));
@@ -540,11 +540,11 @@ int main(int argc, char ** argv) {
             vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 4 * 16, &camera_matrix);
             vkCmdPushConstants(cmdbuf, pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 4*16, 4 * 3, &camera.position);
 
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
                 .imageMemoryBarrierCount = 1,
-                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
                     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                     .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
                     .srcAccessMask = VK_ACCESS_2_NONE,
@@ -556,11 +556,11 @@ int main(int argc, char ** argv) {
                     .subresourceRange = image.whole_image_subresource_range(),
                 }),
             }));
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
                 .imageMemoryBarrierCount = 1,
-                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
                     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                     .srcStageMask = VK_PIPELINE_STAGE_2_NONE,
                     .srcAccessMask = VK_ACCESS_2_NONE,
@@ -628,11 +628,11 @@ int main(int argc, char ** argv) {
 
             vkCmdEndRenderingKHR(cmdbuf);
 
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmp((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
                 .imageMemoryBarrierCount = 1,
-                .pImageMemoryBarriers = tmp((VkImageMemoryBarrier2) {
+                .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
                     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                     .srcStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT,
                     .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
@@ -646,17 +646,17 @@ int main(int argc, char ** argv) {
             }));
 
             VkFence fence;
-            vkCreateFence(device.device, tmp((VkFenceCreateInfo) {
+            vkCreateFence(device.device, tmpPtr((VkFenceCreateInfo) {
                 .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
                 .flags = 0,
             }), nullptr, &fence);
 
             vkEndCommandBuffer(cmdbuf);
-            vkQueueSubmit(device.main_queue, 1, tmp((VkSubmitInfo) {
+            vkQueueSubmit(device.main_queue, 1, tmpPtr((VkSubmitInfo) {
                 .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
                 .waitSemaphoreCount = 1,
                 .pWaitSemaphores = &frame.swapchain_image_available,
-                .pWaitDstStageMask = tmp((VkPipelineStageFlags) VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT),
+                .pWaitDstStageMask = tmpPtr((VkPipelineStageFlags) VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT),
                 .commandBufferCount = 1,
                 .pCommandBuffers = &cmdbuf,
                 .signalSemaphoreCount = 1,

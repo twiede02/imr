@@ -31,7 +31,7 @@ int main() {
                  // paint it red
                  &red,
                  // We want to clear the "whole" image, not a subresource within it.
-                 1, tmp(image.whole_image_subresource_range()));
+                 1, tmpPtr(image.whole_image_subresource_range()));
         });
 
         // This tracks the fps (cpu-side)
