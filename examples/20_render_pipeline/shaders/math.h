@@ -10,7 +10,8 @@ static float expf(float) __asm__("shady::pure_op::GLSL.std.450::27::Invocation")
 static float logf(float) __asm__("shady::pure_op::GLSL.std.450::28::Invocation");
 static float exp2f(float) __asm__("shady::pure_op::GLSL.std.450::29::Invocation");
 static float log2f(float) __asm__("shady::pure_op::GLSL.std.450::30::Invocation");
-static float sqrtf(float) __asm__("shady::pure_op::GLSL.std.450::31::Invocation");
+//static float sqrtf(float) __asm__("shady::pure_op::GLSL.std.450::31::Invocation");
+using vcc::sqrtf;
 static float fminf(float, float) __asm__("shady::pure_op::GLSL.std.450::37::Invocation");
 static float fmaxf(float, float) __asm__("shady::pure_op::GLSL.std.450::40::Invocation");
 static float fmaf(float, float, float) __asm__("shady::pure_op::GLSL.std.450::50::Invocation");
