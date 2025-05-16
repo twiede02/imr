@@ -140,16 +140,18 @@ int main() {
             shader_bind_helper->set_storage_image(0, 0, image);
             shader_bind_helper->commit(cmdbuf);
 
+            // update the push constant data on the host...
+            mat4 m = identity_mat4;
+            mat4 flip_y = identity_mat4;
+            flip_y.rows[1][1] = -1;
+            m = m * flip_y;
+            m = m * rotate_axis_mat4(0, 0.2f);
+            m = m * rotate_axis_mat4(1, push_constants.time);
+            m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f));
+            push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
+
             for (int i = 0; i < 12; i++) {
                 auto tri = cube.triangles[i];
-                // update the push constant data on the host...
-                mat4 m = identity_mat4;
-                mat4 flip_y = identity_mat4;
-                flip_y.rows[1][1] = -1;
-                m = m * flip_y;
-                m = m * rotate_axis_mat4(0, 0.2f);
-                m = m * rotate_axis_mat4(1, push_constants.time);
-                m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f));
                 Tri transformed;
                 auto transform = [&](vec3 input) -> vec3 {
                     vec4 v = vec4(input, 1);

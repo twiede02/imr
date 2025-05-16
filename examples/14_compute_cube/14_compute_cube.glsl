@@ -39,9 +39,9 @@ void main() {
     float u = barCoord(v0, v1, point) / scaling;
     float v = barCoord(v1, v2, point) / scaling;
 
-    if (u < 0.0 || u > 1.0)
+    if (u <= 0.0 || u >= 1.0)
         return;
-    if (v < 0.0 || u + v > 1.0)
+    if (v <= 0.0 || u + v >= 1.0)
         return;
 
     if (scaling < 0)
