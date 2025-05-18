@@ -88,7 +88,8 @@ void Swapchain::Impl::build_swapchain() {
     auto builder = vkb::SwapchainBuilder(device.physical_device, device.device, surface);
     builder.add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
     builder.set_desired_extent(width, height);
-    builder.set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR);
+    builder.set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR);
+    builder.add_fallback_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR);
     if (preferred)
         builder.set_desired_format(*preferred);
 
