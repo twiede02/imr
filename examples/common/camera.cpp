@@ -8,7 +8,7 @@ using namespace nasl;
 mat4 camera_rotation_matrix(const Camera* camera) {
     mat4 matrix = identity_mat4;
     matrix = mul_mat4(rotate_axis_mat4(1, camera->rotation.yaw), matrix);
-    matrix = mul_mat4(rotate_axis_mat4(0, -camera->rotation.pitch), matrix);
+    matrix = mul_mat4(rotate_axis_mat4(0, camera->rotation.pitch), matrix);
     return matrix;
 }
 
@@ -47,8 +47,8 @@ vec3 camera_get_forward_vec(const Camera* cam, vec3 forward) {
     return vec3_scale(result.xyz, 1.0f / result.w);
 }
 
-vec3 camera_get_left_vec(const Camera* cam) {
-    vec4 initial_forward(-1, 0, 0, 1);
+vec3 camera_get_right_vec(const Camera* cam) {
+    vec4 initial_forward(1, 0, 0, 1);
     mat4 matrix = invert_mat4(camera_rotation_matrix(cam));
     vec4 result = mul_mat4_vec4f(matrix, initial_forward);
     return vec3_scale(result.xyz, 1.0f / result.w);
@@ -96,10 +96,10 @@ bool camera_move_freelook(Camera* cam, CameraInput* input, CameraFreelookState* 
     }
 
     if (input->keys.right) {
-        cam->position = vec3_sub(cam->position, vec3_scale(camera_get_left_vec(cam), state->fly_speed * delta));
+        cam->position = vec3_add(cam->position, vec3_scale(camera_get_right_vec(cam), state->fly_speed * delta));
         moved = true;
     } else if (input->keys.left) {
-        cam->position = vec3_add(cam->position, vec3_scale(camera_get_left_vec(cam), state->fly_speed * delta));
+        cam->position = vec3_sub(cam->position, vec3_scale(camera_get_right_vec(cam), state->fly_speed * delta));
         moved = true;
     }
     return moved;

@@ -5,13 +5,9 @@
 #include "nasl/nasl.h"
 #include "nasl/nasl_mat.h"
 
+#include "../common/camera.h"
+
 using namespace nasl;
-
-#include "VkBootstrap.h"
-
-#include <ctime>
-#include <memory>
-#include <filesystem>
 
 struct Tri { vec3 v0, v1, v2; vec3 color; };
 
@@ -86,8 +82,18 @@ struct push_constants {
         { 1, 0 },
         { 1, 1 }
     };
+    mat4 matrix;
     float time;
 } push_constants;
+
+Camera camera;
+CameraFreelookState camera_state = {
+    .fly_speed = 1.0f,
+    .mouse_sensitivity = 1,
+};
+CameraInput camera_input;
+
+void camera_update(GLFWwindow*, CameraInput* input);
 
 int main() {
     glfwInit();
@@ -98,9 +104,14 @@ int main() {
     imr::Device device(context);
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
-    imr::ComputeShader shader(device, "14_compute_cube.spv");
+    imr::ComputeShader shader(device, "15_compute_cubes.spv");
 
     auto cube = make_cube();
+
+    auto prev_frame = imr_get_time_nano();
+    float delta = 0;
+
+    camera = {{0, 0, 0}, {0, 0}, 60};
 
     auto& vk = device.dispatch;
     while (!glfwWindowShouldClose(window)) {
@@ -108,6 +119,9 @@ int main() {
         fps_counter.updateGlfwWindowTitle(window);
 
         swapchain.renderFrameSimplified([&](imr::Swapchain::SimplifiedRenderContext& context) {
+            camera_update(window, &camera_input);
+            camera_move_freelook(&camera, &camera_input, &camera_state, delta);
+
             auto& image = context.image();
             auto cmdbuf = context.cmdbuf();
 
@@ -141,27 +155,23 @@ int main() {
             mat4 flip_y = identity_mat4;
             flip_y.rows[1][1] = -1;
             m = m * flip_y;
-            m = m * rotate_axis_mat4(0, 0.2f);
-            m = m * rotate_axis_mat4(1, push_constants.time);
+            mat4 view_mat = camera_get_view_mat4(&camera, context.image().size().width, context.image().size().height);
+            m = m * view_mat;
+
             m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f));
             push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
+            push_constants.matrix = m;
 
-            // draw all 12 triangles using 12 separate dispatches
+            //printf("\n\n");
+            //printf("%f %f %f %f\n", m.elems.m00, m.elems.m01, m.elems.m02, m.elems.m03);
+            //printf("%f %f %f %f\n", m.elems.m10, m.elems.m11, m.elems.m12, m.elems.m13);
+            //printf("%f %f %f %f\n", m.elems.m20, m.elems.m21, m.elems.m22, m.elems.m23);
+            //printf("%f %f %f %f\n", m.elems.m30, m.elems.m31, m.elems.m32, m.elems.m33);
+
             for (int i = 0; i < 12; i++) {
                 auto tri = cube.triangles[i];
-                Tri transformed;
-                auto transform = [&](vec3 input) -> vec3 {
-                    vec4 v = vec4(input, 1);
-                    v = m * v;
-                    v.xyz = vec3(v.xyz) / (float) v.w;
-                    return v.xyz;
-                };
-                transformed.v0 = transform(tri.v0);
-                transformed.v1 = transform(tri.v1);
-                transformed.v2 = transform(tri.v2);
-                transformed.color = tri.color;
 
-                push_constants.tri = transformed;
+                push_constants.tri = tri;
                 push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
                 // copy it to the command buffer!
                 vkCmdPushConstants(cmdbuf, shader.layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants), &push_constants);
@@ -169,15 +179,30 @@ int main() {
                 // dispatch like before
                 vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
 
-                // EXERCISE: are we missing something here ?
+                vk.cmdPipelineBarrier2(cmdbuf, tmpPtr((VkDependencyInfo) {
+                    .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                    .dependencyFlags = 0,
+                    .memoryBarrierCount = 1,
+                    .pMemoryBarriers = tmpPtr((VkMemoryBarrier2) {
+                        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+                        .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        .srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
+                        .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        .dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
+                    })
+                }));
             }
 
             context.addCleanupAction([=, &device]() {
                 delete shader_bind_helper;
             });
-        });
 
-        glfwPollEvents();
+            auto now = imr_get_time_nano();
+            delta = ((float) ((now - prev_frame) / 1000L)) / 1000000.0f;
+            prev_frame = now;
+
+            glfwPollEvents();
+        });
     }
 
     swapchain.drain();
