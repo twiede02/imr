@@ -44,9 +44,6 @@ void main() {
     if (v <= 0.0 || u + v >= 1.0)
         return;
 
-    if (scaling < 0)
-        return;
-
-    imageStore(renderTarget, ivec2(gl_GlobalInvocationID.xy), vec4(push_constants.triangle.color, 1));
-    //imageStore(renderTarget, ivec2(gl_GlobalInvocationID.xy), vec4(u, v, 1.0 - u - v, 1));
+    vec4 c = vec4(push_constants.triangle.color, 1);
+    imageStore(renderTarget, ivec2(gl_GlobalInvocationID.xy), c);
 }
