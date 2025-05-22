@@ -44,24 +44,20 @@ int main() {
                 .float32 = { 0.0f, 0.0f, 0.0f, 1.0f },
             }), 1, tmpPtr(image.whole_image_subresource_range()));
 
-            // This barrier doesn't change the layout of the image, and instead just ensures that the clear is finished before we run the dispatch.
+            // This barrier ensures that the clear is finished before we run the dispatch.
             // before: all writes from the "transfer" stage (to which the clear command belongs)
             // after: all writes from the "compute" stage
-            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2(cmdbuf, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
-                .imageMemoryBarrierCount = 1,
-                .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
-                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                .memoryBarrierCount = 1,
+                .pMemoryBarriers = tmpPtr((VkMemoryBarrier2) {
+                    .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
                     .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                     .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
                     .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                     .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
-                    .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .image = image.handle(),
-                    .subresourceRange = image.whole_image_subresource_range()
-                }),
+                })
             }));
 
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
