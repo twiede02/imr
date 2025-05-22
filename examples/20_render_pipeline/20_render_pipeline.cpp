@@ -8,7 +8,7 @@
 
 #include "initializers.h"
 
-#include "libs/camera.h"
+#include "../common/camera.h"
 //#include "libs/model.h"
 
 Camera camera;

@@ -1,6 +1,6 @@
 set(SHADERS "")
 
-get_target_property(NASL_INCLUDE shady::nasl INTERFACE_INCLUDE_DIRECTORIES)
+get_target_property(NASL_INCLUDE nasl::nasl INTERFACE_INCLUDE_DIRECTORIES)
 
 function(add_shader SHADER_LIST)
     cmake_parse_arguments(PARSE_ARGV 1 "ARG" "" "SOURCE_FILE" "ADDITIONAL_SOURCES")
