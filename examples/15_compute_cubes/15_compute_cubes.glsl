@@ -25,7 +25,7 @@ float barCoord(vec2 a, vec2 b, vec2 point){
     return cross_2(PA, BA);
 }
 
-vec3 barycentricTri2(vec4 v0, vec4 v1, vec4 v2, vec2 point) {
+vec3 barycentricTri2(vec2 v0, vec2 v1, vec2 v2, vec2 point) {
     float scaling = barCoord(v0.xy, v1.xy, v2.xy);
 
     float u = barCoord(v0.xy, v1.xy, point) / scaling;
@@ -45,17 +45,17 @@ void main() {
     vec2 point = vec2(gl_GlobalInvocationID.xy) / vec2(img_size);
     point = point * 2.0 - vec2(1.0);
 
-    vec4 v0 = vec4(push_constants.triangle.v0, 1);
-    vec4 v1 = vec4(push_constants.triangle.v1, 1);
-    vec4 v2 = vec4(push_constants.triangle.v2, 1);
-    v0 = push_constants.m * v0;
-    v1 = push_constants.m * v1;
-    v2 = push_constants.m * v2;
-    v0.xyz /= v0.w;
-    v1.xyz /= v1.w;
-    v2.xyz /= v2.w;
+    vec4 os_v0 = vec4(push_constants.triangle.v0, 1);
+    vec4 os_v1 = vec4(push_constants.triangle.v1, 1);
+    vec4 os_v2 = vec4(push_constants.triangle.v2, 1);
+    vec4 v0 = push_constants.m * os_v0;
+    vec4 v1 = push_constants.m * os_v1;
+    vec4 v2 = push_constants.m * os_v2;
+    vec3 ss_v0 = v0.xyz /= v0.w;
+    vec3 ss_v1 = v1.xyz /= v1.w;
+    vec3 ss_v2 = v2.xyz /= v2.w;
 
-    vec3 baryResults = barycentricTri2(v0, v1, v2, point);
+    vec3 baryResults = barycentricTri2(ss_v0.xy, ss_v1.xy, ss_v2.xy, point);
     float u = baryResults.x;
     float v = baryResults.y;
     float w = 1 - u - v;
@@ -64,9 +64,38 @@ void main() {
         return;
 
     // TODO: handle clipping properly
-    if (v0.z <= 0 || v1.z <= 0 || v2.z <= 0)
-        return;
+    //if (v0.z <= 0 || v1.z <= 0 || v2.z <= 0)
+    //    return;
 
     vec4 c = vec4(push_constants.triangle.color, 1);
+    vec3 v_ws = vec3(v0.w, v1.w, v2.w);
+    vec3 ss_v_coefs = vec3(v, w, u);
+    vec3 pc_v_coefs = ss_v_coefs / v_ws;
+    float pc_v_coefs_sum = pc_v_coefs.x + pc_v_coefs.y + pc_v_coefs.z;
+    pc_v_coefs = pc_v_coefs / pc_v_coefs_sum;
+
+    float depth = dot(pc_v_coefs, vec3(v0.w, v1.w, v2.w));
+    //float depth = dot(pc_v_coefs, vec3(ss_v0.z, ss_v1.z, ss_v2.z));
+
+    //float tcx = dot(pc_v_coefs, vec3(v0.x, v1.x, v2.x));
+    //float tcy = dot(pc_v_coefs, vec3(v0.y, v1.y, v2.y));
+    float tcx = dot(vec3(os_v0.x, os_v1.x, os_v2.x), pc_v_coefs);
+    float tcy = dot(vec3(os_v0.y, os_v1.y, os_v2.y), pc_v_coefs);
+    float tcz = dot(vec3(os_v0.z, os_v1.z, os_v2.z), pc_v_coefs);
+    vec3 tc = vec3(tcx, tcy, tcz);
+    ivec3 tci = ivec3(tc * 16);
+
+    c.xyz = vec3(1.0, 1.0, tc.x);
+    if ((tci.x + tci.y + tci.z) % 2 == 0)
+        c.xyz = vec3(1.0, 0.0, tc.y);
+
+    if (depth < 0)
+        return;
+    //if (depth < 0 || depth > 1)
+    //    return;
+
+    c.xyz = vec3(depth * 0.6 + 0.2, 0.25, 0.25);
+    //c.xyz = vec3(tcx, tcy, tcz);
+
     imageStore(renderTarget, ivec2(gl_GlobalInvocationID.xy), c);
 }

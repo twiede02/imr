@@ -111,7 +111,7 @@ int main() {
     auto prev_frame = imr_get_time_nano();
     float delta = 0;
 
-    camera = {{0, 0, 0}, {0, 0}, 60};
+    camera = {{0, 0, 3}, {0, 0}, 60};
 
     auto& vk = device.dispatch;
     while (!glfwWindowShouldClose(window)) {
@@ -132,7 +132,7 @@ int main() {
             // This barrier ensures that the clear is finished before we run the dispatch.
             // before: all writes from the "transfer" stage (to which the clear command belongs)
             // after: all writes from the "compute" stage
-            vk.cmdPipelineBarrier2(cmdbuf, tmpPtr((VkDependencyInfo) {
+            vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                 .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                 .dependencyFlags = 0,
                 .memoryBarrierCount = 1,
@@ -179,16 +179,20 @@ int main() {
                 // dispatch like before
                 vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
 
-                vk.cmdPipelineBarrier2(cmdbuf, tmpPtr((VkDependencyInfo) {
+                vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                     .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
                     .dependencyFlags = 0,
-                    .memoryBarrierCount = 1,
-                    .pMemoryBarriers = tmpPtr((VkMemoryBarrier2) {
-                        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+                    .imageMemoryBarrierCount = 1,
+                    .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
+                        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
                         .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                         .srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
                         .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                         .dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
+                        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+                        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                        .image = image.handle(),
+                        .subresourceRange = image.whole_image_subresource_range(),
                     })
                 }));
             }

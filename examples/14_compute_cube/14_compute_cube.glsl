@@ -45,5 +45,7 @@ void main() {
         return;
 
     vec4 c = vec4(push_constants.triangle.color, 1);
+    vec4 p = imageLoad(renderTarget, ivec2(gl_GlobalInvocationID.xy));
+    c = mix(c, p, 0.5);
     imageStore(renderTarget, ivec2(gl_GlobalInvocationID.xy), c);
 }

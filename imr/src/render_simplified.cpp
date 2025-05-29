@@ -44,7 +44,7 @@ void Swapchain::renderFrameSimplified(std::function<void(SimplifiedRenderContext
         // This barrier transitions the image from an unknown state into the "general" layout so we can render to it.
         // before the barrier: nothing relevant happens
         // after the barrier: all writes from any pipeline stage
-        vk.cmdPipelineBarrier2(cmdbuf, tmpPtr((VkDependencyInfo) {
+        vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
             .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
             .dependencyFlags = 0,
             .imageMemoryBarrierCount = 1,
