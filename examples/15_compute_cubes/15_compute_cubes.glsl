@@ -9,21 +9,15 @@ layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 
 struct Tri { vec3 v0, v1, v2; vec3 color; };
 
+#define dvec3 vec3
+#define dvec2 vec2
+#define double float
+
 layout(scalar, push_constant) uniform T {
 	Tri triangle;
     mat4 m;
 	float time;
 } push_constants;
-
-float cross_2(vec2 a, vec2 b) {
-    return cross(vec3(a, 0), vec3(b, 0)).z;
-}
-
-float barCoord(vec2 a, vec2 b, vec2 point){
-    vec2 PA = point - a;
-    vec2 BA = b - a;
-    return cross_2(PA, BA);
-}
 
 double cross_2(dvec2 a, dvec2 b) {
     return cross(dvec3(a, 0), dvec3(b, 0)).z;
