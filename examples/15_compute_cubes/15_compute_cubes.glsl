@@ -68,11 +68,6 @@ void main() {
     dvec2 ss_v1 = dvec2(v1.xy) / v1.w;
     dvec2 ss_v2 = dvec2(v2.xy) / v2.w;
 
-    dvec3 baryResults = barycentricTri2(ss_v0.xy, ss_v1.xy, ss_v2.xy, point);
-    double u = baryResults.x;
-    double v = baryResults.y;
-    double w = 1 - u - v;
-
     vec4 pixelColor = vec4(push_constants.triangle.color, 1);
 
     bool backface = ((is_inside_edge(ss_v1.xy, ss_v0.xy, point) ^^ (v0.w < 0) ^^ (v1.w < 0)) && (is_inside_edge(ss_v2.xy, ss_v1.xy, point) ^^ (v1.w < 0) ^^ (v2.w < 0)) && (is_inside_edge(ss_v0.xy, ss_v2.xy, point) ^^ (v2.w < 0) ^^ (v0.w < 0)));
@@ -80,6 +75,11 @@ void main() {
     bool frontface = (is_inside_edge(ss_v0.xy, ss_v1.xy, point) ^^ (v0.w < 0) ^^ (v1.w < 0)) && (is_inside_edge(ss_v1.xy, ss_v2.xy, point) ^^ (v1.w < 0) ^^ (v2.w < 0)) && (is_inside_edge(ss_v2.xy, ss_v0.xy, point) ^^ (v2.w < 0) ^^ (v0.w < 0));
     if (!frontface && !backface)
         return;
+
+    dvec3 baryResults = barycentricTri2(ss_v0.xy, ss_v1.xy, ss_v2.xy, point);
+    double u = baryResults.x;
+    double v = baryResults.y;
+    double w = 1 - u - v;
 
     dvec3 v_ws = vec3(v0.w, v1.w, v2.w);
     dvec3 ss_v_coefs = vec3(v, w, u);

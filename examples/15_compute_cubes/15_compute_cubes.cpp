@@ -95,16 +95,23 @@ CameraInput camera_input;
 
 void camera_update(GLFWwindow*, CameraInput* input);
 
+bool reload_shaders = false;
+
 int main() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
 
+    glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
+        if (key == GLFW_KEY_R && (mods & GLFW_MOD_CONTROL))
+            reload_shaders = true;
+    });
+
     imr::Context context;
     imr::Device device(context);
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
-    imr::ComputeShader shader(device, "15_compute_cubes.spv");
+    auto shader = std::make_unique<imr::ComputeShader>(device, "15_compute_cubes.spv");
 
     auto cube = make_cube();
 
@@ -133,6 +140,12 @@ int main() {
         swapchain.renderFrameSimplified([&](imr::Swapchain::SimplifiedRenderContext& context) {
             camera_update(window, &camera_input);
             camera_move_freelook(&camera, &camera_input, &camera_state, delta);
+
+            if (reload_shaders) {
+                swapchain.drain();
+                shader = std::make_unique<imr::ComputeShader>(device, "15_compute_cubes.spv");
+                reload_shaders = false;
+            }
 
             auto& image = context.image();
             auto cmdbuf = context.cmdbuf();
@@ -183,8 +196,8 @@ int main() {
                 })
             }));
 
-            vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
-            auto shader_bind_helper = shader.create_bind_helper();
+            vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader->pipeline());
+            auto shader_bind_helper = shader->create_bind_helper();
             shader_bind_helper->set_storage_image(0, 0, image);
             shader_bind_helper->set_storage_image(0, 1, *depthBuffer);
             shader_bind_helper->commit(cmdbuf);
@@ -218,7 +231,7 @@ int main() {
                     push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
                     push_constants.matrix = cm;
                     // copy it to the command buffer!
-                    vkCmdPushConstants(cmdbuf, shader.layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants), &push_constants);
+                    vkCmdPushConstants(cmdbuf, shader->layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants), &push_constants);
 
                     // dispatch like before
                     vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);

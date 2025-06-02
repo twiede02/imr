@@ -51,6 +51,8 @@ void Swapchain::Frame::queuePresent() {
     auto& slot = _impl->slot;
     auto& swapchain = slot.swapchain;
     auto& device = _impl->device;
+    assert(!_impl->submitted && "Cannot submit a frame twice!");
+    _impl->submitted = true;
 
     uint64_t now = imr_get_time_nano();
     uint64_t delta = now - swapchain._impl->last_present;
