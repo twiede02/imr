@@ -5,6 +5,9 @@
 layout(set = 0, binding = 0)
 uniform image2D renderTarget;
 
+layout(set = 0, binding = 1)
+uniform image2D depthBuffer;
+
 layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 
 struct Tri { vec3 v0, v1, v2; vec3 color; };
@@ -84,7 +87,7 @@ void main() {
     double pc_v_coefs_sum = pc_v_coefs.x + pc_v_coefs.y + pc_v_coefs.z;
     pc_v_coefs = pc_v_coefs / pc_v_coefs_sum;
 
-    float depth = float(dot(pc_v_coefs, vec3(v0.w, v1.w, v2.w)));
+    float depth = float(dot(ss_v_coefs, vec3(v0.z / v0.w, v1.z / v1.w, v2.z / v2.w)));
 
     float tcx = float(dot(vec3(os_v0.x, os_v1.x, os_v2.x), pc_v_coefs));
     float tcy = float(dot(vec3(os_v0.y, os_v1.y, os_v2.y), pc_v_coefs));
@@ -98,8 +101,14 @@ void main() {
     if (depth < 0)
         return;
 
-    //c.xyz = vec3(depth * 0.6 + 0.2, 0.25, 0.25);
-    //c.xyz = vec3(tcx, tcy, tcz);
+    float prevDepth = imageLoad(depthBuffer, ivec2(gl_GlobalInvocationID.xy)).x;
+    if (depth < prevDepth)
+        imageStore(depthBuffer, ivec2(gl_GlobalInvocationID.xy), vec4(depth));
+    else
+        return;
+
+    //pixelColor = vec4(prevDepth);
+    //pixelColor.r = 1;
 
     //vec4 previousPixelColor = imageLoad(renderTarget, ivec2(gl_GlobalInvocationID.xy));
     //pixelColor.rgb = mix(pixelColor.rgb, previousPixelColor.rgb, 0.5);

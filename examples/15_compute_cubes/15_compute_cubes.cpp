@@ -123,6 +123,8 @@ int main() {
 
     camera = {{0, 0, 3}, {0, 0}, 60};
 
+    std::unique_ptr<imr::Image> depthBuffer;
+
     auto& vk = device.dispatch;
     while (!glfwWindowShouldClose(window)) {
         fps_counter.tick();
@@ -135,9 +137,35 @@ int main() {
             auto& image = context.image();
             auto cmdbuf = context.cmdbuf();
 
+            if (!depthBuffer || depthBuffer->size().width != context.image().size().width || depthBuffer->size().height != context.image().size().height) {
+                VkImageUsageFlagBits depthBufferFlags = static_cast<VkImageUsageFlagBits>(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
+                depthBuffer = std::make_unique<imr::Image>(device, VK_IMAGE_TYPE_2D, context.image().size(), VK_FORMAT_D32_SFLOAT, depthBufferFlags);
+
+                vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
+                    .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                    .dependencyFlags = 0,
+                    .imageMemoryBarrierCount = 1,
+                    .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
+                        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                        .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                        .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                        .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                        .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                        .image = depthBuffer->handle(),
+                        .subresourceRange = depthBuffer->whole_image_subresource_range()
+                    })
+                }));
+            }
+
             vk.cmdClearColorImage(cmdbuf, image.handle(), VK_IMAGE_LAYOUT_GENERAL, tmpPtr((VkClearColorValue) {
                 .float32 = { 0.0f, 0.0f, 0.0f, 1.0f },
             }), 1, tmpPtr(image.whole_image_subresource_range()));
+
+            vkCmdClearDepthStencilImage(cmdbuf, depthBuffer->handle(), VK_IMAGE_LAYOUT_GENERAL, tmpPtr((VkClearDepthStencilValue) {
+                .depth = 1,
+            }), 1, tmpPtr(depthBuffer->whole_image_subresource_range()));
 
             // This barrier ensures that the clear is finished before we run the dispatch.
             // before: all writes from the "transfer" stage (to which the clear command belongs)
@@ -158,6 +186,7 @@ int main() {
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
             auto shader_bind_helper = shader.create_bind_helper();
             shader_bind_helper->set_storage_image(0, 0, image);
+            shader_bind_helper->set_storage_image(0, 1, *depthBuffer);
             shader_bind_helper->commit(cmdbuf);
 
             // update the push constant data on the host...
