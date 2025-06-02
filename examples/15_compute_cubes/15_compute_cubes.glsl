@@ -30,15 +30,12 @@ double barCoord(dvec2 a, dvec2 b, dvec2 point){
 }
 
 dvec3 barycentricTri2(dvec2 v0, dvec2 v1, dvec2 v2, dvec2 point) {
-    double scaling = barCoord(v0.xy, v1.xy, v2.xy);
+    double triangleArea = barCoord(v0.xy, v1.xy, v2.xy);
 
-    double u = barCoord(v0.xy, v1.xy, point) / scaling;
-    double v = barCoord(v1.xy, v2.xy, point) / scaling;
+    double u = barCoord(v0.xy, v1.xy, point) / triangleArea;
+    double v = barCoord(v1.xy, v2.xy, point) / triangleArea;
 
-    //if (scaling > 0)
-    //    return vec3(-1);
-
-    return dvec3(u, v, scaling);
+    return dvec3(u, v, triangleArea);
 }
 
 bool is_inside_edge(dvec2 e0, dvec2 e1, dvec2 p) {
@@ -73,14 +70,9 @@ void main() {
     double v = baryResults.y;
     double w = 1 - u - v;
 
-    //if (!(u >= 0.0 && v >= 0.0 && w >= 0.0))
-    //    return;
-
-    vec4 c = vec4(push_constants.triangle.color, 1);
+    vec4 pixelColor = vec4(push_constants.triangle.color, 1);
 
     bool backface = ((is_inside_edge(ss_v1.xy, ss_v0.xy, point) ^^ (v0.w < 0) ^^ (v1.w < 0)) && (is_inside_edge(ss_v2.xy, ss_v1.xy, point) ^^ (v1.w < 0) ^^ (v2.w < 0)) && (is_inside_edge(ss_v0.xy, ss_v2.xy, point) ^^ (v2.w < 0) ^^ (v0.w < 0)));
-    //if (not_backface)
-    //    return;
 
     bool frontface = (is_inside_edge(ss_v0.xy, ss_v1.xy, point) ^^ (v0.w < 0) ^^ (v1.w < 0)) && (is_inside_edge(ss_v1.xy, ss_v2.xy, point) ^^ (v1.w < 0) ^^ (v2.w < 0)) && (is_inside_edge(ss_v2.xy, ss_v0.xy, point) ^^ (v2.w < 0) ^^ (v0.w < 0));
     if (!frontface && !backface)
@@ -99,19 +91,17 @@ void main() {
     float tcz = float(dot(vec3(os_v0.z, os_v1.z, os_v2.z), pc_v_coefs));
     vec3 tc = vec3(tcx, tcy, tcz);
     ivec3 tci = ivec3(tc * 16 + 0.001);
-    c.xyz = vec3(1.0, 1.0, tc.x);
+    pixelColor.xyz = vec3(1.0, 1.0, tc.x);
     if ((tci.x + tci.y + tci.z) % 2 == 0)
-        c.xyz = vec3(1.0, 0.0, tc.y);
+        pixelColor.xyz = vec3(1.0, 0.0, tc.y);
 
     if (depth < 0)
         return;
-    //if (depth < 0 || depth > 1)
-    //    return;
 
     //c.xyz = vec3(depth * 0.6 + 0.2, 0.25, 0.25);
     //c.xyz = vec3(tcx, tcy, tcz);
 
-    vec4 p = imageLoad(renderTarget, ivec2(gl_GlobalInvocationID.xy));
-    c.rgb = mix(c.rgb, p.rgb, 0.5);
-    imageStore(renderTarget, ivec2(gl_GlobalInvocationID.xy), c);
+    //vec4 previousPixelColor = imageLoad(renderTarget, ivec2(gl_GlobalInvocationID.xy));
+    //pixelColor.rgb = mix(pixelColor.rgb, previousPixelColor.rgb, 0.5);
+    imageStore(renderTarget, ivec2(gl_GlobalInvocationID.xy), pixelColor);
 }

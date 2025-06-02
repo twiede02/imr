@@ -108,6 +108,16 @@ int main() {
 
     auto cube = make_cube();
 
+    std::vector<vec3> positions;
+
+    for (size_t i = 0; i < 16; i++) {
+        vec3 p;
+        p.x = ((float)rand() / RAND_MAX) * 20 - 10;
+        p.y = ((float)rand() / RAND_MAX) * 20 - 10;
+        p.z = ((float)rand() / RAND_MAX) * 20 - 10;
+        positions.push_back(p);
+    }
+
     auto prev_frame = imr_get_time_nano();
     float delta = 0;
 
@@ -168,33 +178,39 @@ int main() {
             //printf("%f %f %f %f\n", m.elems.m20, m.elems.m21, m.elems.m22, m.elems.m23);
             //printf("%f %f %f %f\n", m.elems.m30, m.elems.m31, m.elems.m32, m.elems.m33);
 
-            for (int i = 0; i < 12; i++) {
-                auto tri = cube.triangles[i];
 
-                push_constants.tri = tri;
-                push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
-                // copy it to the command buffer!
-                vkCmdPushConstants(cmdbuf, shader.layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants), &push_constants);
+            for (auto pos : positions) {
+                mat4 cm = m;
+                cm = cm * translate_mat4(pos);
+                for (int i = 0; i < 12; i++) {
+                    auto tri = cube.triangles[i];
 
-                // dispatch like before
-                vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
+                    push_constants.tri = tri;
+                    push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
+                    push_constants.matrix = cm;
+                    // copy it to the command buffer!
+                    vkCmdPushConstants(cmdbuf, shader.layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants), &push_constants);
 
-                vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
-                    .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                    .dependencyFlags = 0,
-                    .imageMemoryBarrierCount = 1,
-                    .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
-                        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                        .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        .srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
-                        .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        .dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT,
-                        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-                        .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                        .image = image.handle(),
-                        .subresourceRange = image.whole_image_subresource_range(),
-                    })
-                }));
+                    // dispatch like before
+                    vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
+
+                    vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
+                        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                        .dependencyFlags = 0,
+                        .imageMemoryBarrierCount = 1,
+                        .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
+                            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                            .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                            .srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+                            .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                            .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+                            .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+                            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                            .image = image.handle(),
+                            .subresourceRange = image.whole_image_subresource_range(),
+                        })
+                    }));
+                }
             }
 
             context.addCleanupAction([=, &device]() {
