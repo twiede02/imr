@@ -12,13 +12,22 @@ layout(scalar, push_constant) uniform T {
 	float time;
 } push_constants;
 
+float cross2d(vec2 a, vec2 b) {
+    return a.x * b.y - a.y * b.x;
+}
+
 bool is_inside_edge(vec2 e0, vec2 e1, vec2 p) {
-    if (e1.x == e0.x)
-      return (e1.x > p.x) ^^ (e0.y > e1.y);
-    float a = (e1.y - e0.y) / (e1.x - e0.x);
-    float b = e0.y + (0 - e0.x) * a;
-    float ey = a * p.x + b;
-    return (ey < p.y) ^^ (e0.x > e1.x);
+    // Geometric interpretation: cross product
+    vec2 ep1 = p - e0;
+    vec2 ep2 = p - e1;
+    return cross2d(ep1, ep2) > 0;
+    // More naive version, derived from linear slope equations (f(x) = a + bx):
+    // if (e1.x == e0.x)
+    //   return (e1.x > p.x) ^^ (e0.y > e1.y);
+    // float a = (e1.y - e0.y) / (e1.x - e0.x);
+    // float b = e0.y + (0 - e0.x) * a;
+    // float ey = a * p.x + b;
+    // return (ey < p.y) ^^ (e0.x > e1.x);
 }
 
 void main() {
