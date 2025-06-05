@@ -247,7 +247,7 @@ int main(int argc, char** argv) {
 
             if (!depthBuffer || depthBuffer->size().width != context.image().size().width || depthBuffer->size().height != context.image().size().height) {
                 VkImageUsageFlagBits depthBufferFlags = static_cast<VkImageUsageFlagBits>(VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT);
-                depthBuffer = std::make_unique<imr::Image>(device, VK_IMAGE_TYPE_2D, context.image().size(), VK_FORMAT_D32_SFLOAT, depthBufferFlags);
+                depthBuffer = std::make_unique<imr::Image>(device, VK_IMAGE_TYPE_2D, context.image().size(), VK_FORMAT_R32_SFLOAT, depthBufferFlags);
 
                 vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
                     .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
@@ -271,8 +271,8 @@ int main(int argc, char** argv) {
                 .float32 = { 0.0f, 0.0f, 0.0f, 1.0f },
             }), 1, tmpPtr(image.whole_image_subresource_range()));
 
-            vkCmdClearDepthStencilImage(cmdbuf, depthBuffer->handle(), VK_IMAGE_LAYOUT_GENERAL, tmpPtr((VkClearDepthStencilValue) {
-                .depth = 1,
+            vk.cmdClearColorImage(cmdbuf, depthBuffer->handle(), VK_IMAGE_LAYOUT_GENERAL, tmpPtr((VkClearColorValue) {
+                .float32 = { 1.0f, 0.0f, 0.0f, 0.0f },
             }), 1, tmpPtr(depthBuffer->whole_image_subresource_range()));
 
             // This barrier ensures that the clear is finished before we run the dispatch.
