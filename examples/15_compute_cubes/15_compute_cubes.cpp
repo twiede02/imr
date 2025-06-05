@@ -93,6 +93,14 @@ struct {
     float time;
 } push_constants_batched;
 
+struct {
+    VkDeviceAddress tri_buffer;
+    uint32_t tri_count;
+    VkDeviceAddress matrices_buffer;
+    uint32_t instances_count;
+    float time;
+} push_constants_instanced;
+
 Camera camera;
 CameraFreelookState camera_state = {
     .fly_speed = 1.0f,
@@ -104,9 +112,12 @@ void camera_update(GLFWwindow*, CameraInput* input);
 
 bool reload_shaders = false;
 
+#define INSTANCES_COUNT 16
+
 enum TriDrawMode {
     SINGLE,
-    BATCHED
+    BATCHED,
+    INSTANCED,
 };
 
 TriDrawMode mode = SINGLE;
@@ -117,6 +128,11 @@ int main(int argc, char** argv) {
         if (strcmp(argv[i], "--batched") == 0) {
             mode = BATCHED;
             shader_name = "15_compute_cubes_batched.spv";
+            continue;
+        }
+        if (strcmp(argv[i], "--instanced") == 0) {
+            mode = INSTANCED;
+            shader_name = "15_compute_cubes_instanced.spv";
             continue;
         }
     }
@@ -139,14 +155,19 @@ int main(int argc, char** argv) {
     auto cube = make_cube();
 
     std::unique_ptr<imr::Buffer> triangles_buffer;
-    if (mode == BATCHED) {
+    if (mode == BATCHED || mode == INSTANCED) {
         triangles_buffer = std::make_unique<imr::Buffer>(device, sizeof(cube.triangles), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
         triangles_buffer->uploadDataSync(0, sizeof(cube.triangles), cube.triangles);
     }
 
+    std::unique_ptr<imr::Buffer> matrices_buffer;
+    if (mode == INSTANCED) {
+        matrices_buffer = std::make_unique<imr::Buffer>(device, sizeof(nasl::mat4) * INSTANCES_COUNT, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+    }
+
     std::vector<vec3> positions;
 
-    for (size_t i = 0; i < 16; i++) {
+    for (size_t i = 0; i < INSTANCES_COUNT; i++) {
         vec3 p;
         p.x = ((float)rand() / RAND_MAX) * 20 - 10;
         p.y = ((float)rand() / RAND_MAX) * 20 - 10;
@@ -297,12 +318,33 @@ int main(int argc, char** argv) {
 
                         push_constants_batched.matrix = cube_matrix;
 
-                        // copy it to the command buffer!
                         vkCmdPushConstants(cmdbuf, shader->layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants_batched), &push_constants_batched);
-                        // dispatch like before
                         vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
                     }
 
+                    break;
+                }
+                case INSTANCED: {
+                    push_constants_instanced.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
+                    // the cube data is the same for all
+                    push_constants_instanced.tri_buffer = triangles_buffer->device_address();
+                    push_constants_instanced.tri_count = 12;
+
+                    std::vector<mat4> matrices;
+                    for (auto pos : positions) {
+                        mat4 cube_matrix = m;
+                        cube_matrix = cube_matrix * translate_mat4(pos);
+                        matrices.push_back(cube_matrix);
+                    }
+                    matrices_buffer->uploadDataSync(0, sizeof(mat4) * matrices.size(), matrices.data());
+
+                    push_constants_instanced.matrices_buffer = matrices_buffer->device_address();
+                    push_constants_instanced.instances_count = matrices.size();
+
+                    add_render_barrier();
+
+                    vkCmdPushConstants(cmdbuf, shader->layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants_instanced), &push_constants_instanced);
+                    vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
                     break;
                 }
             }
