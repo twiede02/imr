@@ -49,6 +49,8 @@ struct Device {
 
     vkb::DispatchTable dispatch;
 
+    void executeCommandsSync(std::function<void(VkCommandBuffer)>);
+
     class Impl;
     std::unique_ptr<Impl> _impl;
 };
@@ -60,11 +62,13 @@ struct Buffer {
 
     size_t const size;
     VkBuffer handle;
-    /// 64-bit virtual address of the buffer on the GPU
-    VkDeviceAddress device_address;
+    /// query 64-bit virtual address of the buffer on the GPU
+    VkDeviceAddress device_address();
     /// Managed by the allocator, required for mapping the buffer
     VkDeviceMemory memory;
     size_t memory_offset;
+
+    void uploadDataSync(uint64_t offset, uint64_t size, void* data);
 
     struct Impl;
     std::unique_ptr<Impl> _impl;

@@ -76,7 +76,7 @@ Cube make_cube() {
     return cube;
 }
 
-struct push_constants {
+struct {
     Tri tri = {
         { 0, 0 },
         { 1, 0 },
@@ -84,7 +84,14 @@ struct push_constants {
     };
     mat4 matrix;
     float time;
-} push_constants;
+} push_constants_single;
+
+struct {
+    VkDeviceAddress tri_buffer;
+    uint32_t tri_count;
+    mat4 matrix;
+    float time;
+} push_constants_batched;
 
 Camera camera;
 CameraFreelookState camera_state = {
@@ -97,7 +104,23 @@ void camera_update(GLFWwindow*, CameraInput* input);
 
 bool reload_shaders = false;
 
-int main() {
+enum TriDrawMode {
+    SINGLE,
+    BATCHED
+};
+
+TriDrawMode mode = SINGLE;
+
+int main(int argc, char** argv) {
+    std::string shader_name = "15_compute_cubes.spv";
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--batched") == 0) {
+            mode = BATCHED;
+            shader_name = "15_compute_cubes_batched.spv";
+            continue;
+        }
+    }
+
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     auto window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
@@ -111,9 +134,15 @@ int main() {
     imr::Device device(context);
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
-    auto shader = std::make_unique<imr::ComputeShader>(device, "15_compute_cubes.spv");
+    auto shader = std::make_unique<imr::ComputeShader>(device, shader_name.c_str());
 
     auto cube = make_cube();
+
+    std::unique_ptr<imr::Buffer> triangles_buffer;
+    if (mode == BATCHED) {
+        triangles_buffer = std::make_unique<imr::Buffer>(device, sizeof(cube.triangles), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+        triangles_buffer->uploadDataSync(0, sizeof(cube.triangles), cube.triangles);
+    }
 
     std::vector<vec3> positions;
 
@@ -143,7 +172,7 @@ int main() {
 
             if (reload_shaders) {
                 swapchain.drain();
-                shader = std::make_unique<imr::ComputeShader>(device, "15_compute_cubes.spv");
+                shader = std::make_unique<imr::ComputeShader>(device, shader_name.c_str());
                 reload_shaders = false;
             }
 
@@ -196,6 +225,21 @@ int main() {
                 })
             }));
 
+            auto add_render_barrier = [&]() {
+                vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
+                   .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                   .dependencyFlags = 0,
+                   .memoryBarrierCount = 1,
+                   .pMemoryBarriers = tmpPtr((VkMemoryBarrier2) {
+                       .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+                       .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                       .srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+                       .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                       .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+                   })
+               }));
+            };
+
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader->pipeline());
             auto shader_bind_helper = shader->create_bind_helper();
             shader_bind_helper->set_storage_image(0, 0, image);
@@ -209,55 +253,59 @@ int main() {
             m = m * flip_y;
             mat4 view_mat = camera_get_view_mat4(&camera, context.image().size().width, context.image().size().height);
             m = m * view_mat;
-
             m = m * translate_mat4(vec3(-0.5, -0.5f, -0.5f));
-            push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
-            push_constants.matrix = m;
 
-            //printf("\n\n");
-            //printf("%f %f %f %f\n", m.elems.m00, m.elems.m01, m.elems.m02, m.elems.m03);
-            //printf("%f %f %f %f\n", m.elems.m10, m.elems.m11, m.elems.m12, m.elems.m13);
-            //printf("%f %f %f %f\n", m.elems.m20, m.elems.m21, m.elems.m22, m.elems.m23);
-            //printf("%f %f %f %f\n", m.elems.m30, m.elems.m31, m.elems.m32, m.elems.m33);
+            switch (mode) {
+                case SINGLE: {
+                    push_constants_single.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
 
+                    for (auto pos : positions) {
+                        mat4 cube_matrix = m;
+                        cube_matrix = cube_matrix * translate_mat4(pos);
 
-            for (auto pos : positions) {
-                mat4 cm = m;
-                cm = cm * translate_mat4(pos);
-                for (int i = 0; i < 12; i++) {
-                    auto tri = cube.triangles[i];
+                        for (int i = 0; i < 12; i++) {
+                            add_render_barrier();
 
-                    push_constants.tri = tri;
-                    push_constants.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
-                    push_constants.matrix = cm;
-                    // copy it to the command buffer!
-                    vkCmdPushConstants(cmdbuf, shader->layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants), &push_constants);
+                            auto tri = cube.triangles[i];
 
-                    // dispatch like before
-                    vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
+                            push_constants_single.tri = tri;
+                            push_constants_single.matrix = cube_matrix;
+                            // copy it to the command buffer!
+                            vkCmdPushConstants(cmdbuf, shader->layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants_single), &push_constants_single);
 
-                    vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
-                        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                        .dependencyFlags = 0,
-                        .imageMemoryBarrierCount = 1,
-                        .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
-                            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-                            .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                            .srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
-                            .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                            .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
-                            .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-                            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                            .image = image.handle(),
-                            .subresourceRange = image.whole_image_subresource_range(),
-                        })
-                    }));
+                            // dispatch like before
+                            vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
+                        }
+                    }
+
+                    context.addCleanupAction([=, &device]() {
+                        delete shader_bind_helper;
+                    });
+                    break;
+                }
+                case BATCHED: {
+                    push_constants_batched.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
+                    // the cube data is the same for all
+                    push_constants_batched.tri_buffer = triangles_buffer->device_address();
+                    push_constants_batched.tri_count = 12;
+
+                    for (auto pos : positions) {
+                        add_render_barrier();
+
+                        mat4 cube_matrix = m;
+                        cube_matrix = cube_matrix * translate_mat4(pos);
+
+                        push_constants_batched.matrix = cube_matrix;
+
+                        // copy it to the command buffer!
+                        vkCmdPushConstants(cmdbuf, shader->layout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push_constants_batched), &push_constants_batched);
+                        // dispatch like before
+                        vkCmdDispatch(cmdbuf, (image.size().width + 31) / 32, (image.size().height + 31) / 32, 1);
+                    }
+
+                    break;
                 }
             }
-
-            context.addCleanupAction([=, &device]() {
-                delete shader_bind_helper;
-            });
 
             auto now = imr_get_time_nano();
             delta = ((float) ((now - prev_frame) / 1000L)) / 1000000.0f;
