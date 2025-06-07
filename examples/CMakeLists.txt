@@ -4,7 +4,6 @@ add_subdirectory(12_compute_shader)
 add_subdirectory(13_compute_triangle)
 add_subdirectory(14_compute_cube)
 add_subdirectory(15_compute_cubes)
-add_subdirectory(20_render_pipeline)
 
 add_subdirectory(present_from_buffer)
 add_subdirectory(present_from_image)
