@@ -5,15 +5,8 @@
 
 namespace imr {
 
-struct SPIRVModule {
-    size_t size = 0;
-    uint32_t* data = nullptr;
-    std::string name;
-
-    SPIRVModule(const std::string& filename) noexcept(false);
-    SPIRVModule(const SPIRVModule&) = delete;
-    ~SPIRVModule();
-};
+using SPIRVModule = std::vector<uint32_t>;
+SPIRVModule load_spirv_module(const std::string& filename);
 
 /// Generates set layouts and pipeline layouts from the SPIR-V module by parsing it as a shady module and using the IR inspection API to find bindings and such
 struct ReflectedLayout {
@@ -36,27 +29,27 @@ struct PipelineLayout {
     ~PipelineLayout();
 };
 
-struct ShaderModule {
+struct ShaderModule::Impl {
     imr::Device& device;
-    SPIRVModule&& spirv_module;
+    SPIRVModule spirv_module;
     VkShaderModule vk_shader_module;
 
-    ShaderModule(imr::Device& device, SPIRVModule&& spirv_module) noexcept(false);
+    Impl(imr::Device& device, SPIRVModule&& spirv_module) noexcept(false);
 
-    ShaderModule(const ShaderModule&) = delete;
-    ShaderModule(ShaderModule&&) = default;
+    Impl(const Impl&) = delete;
+    Impl(Impl&&) = default;
 
-    ~ShaderModule();
+    ~Impl();
 };
 
-struct ShaderEntryPoint {
+struct ShaderEntryPoint::Impl {
     ShaderModule& module;
     VkShaderStageFlagBits stage;
     std::string name;
     std::unique_ptr<ReflectedLayout> reflected;
 
-    ShaderEntryPoint(ShaderModule& module, VkShaderStageFlagBits stage, const std::string& entrypoint_name);
-    ~ShaderEntryPoint();
+    Impl(ShaderModule& module, VkShaderStageFlagBits stage, const std::string& entrypoint_name);
+    ~Impl();
 };
 
 struct ComputePipeline::Impl {

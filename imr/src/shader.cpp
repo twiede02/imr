@@ -17,13 +17,15 @@ extern "C" {
 
 namespace imr {
 
-SPIRVModule::SPIRVModule(const std::string& filename) : name(filename) {
+SPIRVModule load_spirv_module(const std::string& filename) {
+    size_t size;
+    uint32_t* data;
     if (!imr_read_file((std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/" + filename).c_str(), &size, (unsigned char**) &data))
-    throw std::runtime_error("Failed to read " + filename);
-}
-
-SPIRVModule::~SPIRVModule() {
-    free(data);
+        throw std::runtime_error("Failed to read " + filename);
+    SPIRVModule module;
+    module.resize(size / 4);
+    memcpy(module.data(), data, size);
+    return module;
 }
 
 ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFlags stage) : stages(stage) {
@@ -31,7 +33,7 @@ ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFl
     auto target = shd_default_target_config();
 
     Module* module = nullptr;
-    auto parse_result = shd_parse_spirv(&config, &target, spirv_module.size, reinterpret_cast<char*>(spirv_module.data), spirv_module.name.c_str(), &module);
+    auto parse_result = shd_parse_spirv(&config, &target, spirv_module.size() * 4, reinterpret_cast<char*>(spirv_module.data()), "imr_module_name_doesnt_matter", &module);
     assert(parse_result == S2S_Success);
 
     auto globals = shd_module_collect_reachable_globals(module);
@@ -131,27 +133,47 @@ PipelineLayout::~PipelineLayout() {
         vkDestroyDescriptorSetLayout(device.device, set_layout, nullptr);
 }
 
-ShaderModule::ShaderModule(imr::Device& device, imr::SPIRVModule&& spirv_module) noexcept(false) : device(device), spirv_module(std::move(spirv_module)) {
+ShaderModule::ShaderModule(imr::Device& device, std::string&& spirv_filename) noexcept(false) {
+    auto spirv_module = load_spirv_module(spirv_filename);
+    _impl = std::make_unique<Impl>(device, std::move(spirv_module));
+}
+
+ShaderModule::Impl::Impl(imr::Device& device, imr::SPIRVModule&& spirv_module) noexcept(false) : device(device), spirv_module(std::move(spirv_module)) {
+    assert(this->spirv_module.size() > 0);
     CHECK_VK(vkCreateShaderModule(device.device, tmpPtr((VkShaderModuleCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .flags = 0,
-        .codeSize = spirv_module.size,
-        .pCode = spirv_module.data,
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .flags = 0,
+            .codeSize = this->spirv_module.size() * 4,
+            .pCode = this->spirv_module.data(),
     }), nullptr, &vk_shader_module), throw std::runtime_error("Failed to build shader module"));
 }
 
-ShaderModule::~ShaderModule() {
+VkShaderModule ShaderModule::vk_shader_module() const { return _impl->vk_shader_module; }
+
+ShaderModule::Impl::~Impl() {
     vkDestroyShaderModule(device.device, vk_shader_module, nullptr);
 }
 
-ShaderEntryPoint::ShaderEntryPoint(imr::ShaderModule& module, VkShaderStageFlagBits stage, const std::string& name) : module(module), stage(stage), name(name) {
-    reflected = std::make_unique<ReflectedLayout>(module.spirv_module, stage);
+ShaderModule::~ShaderModule() = default;
+
+ShaderEntryPoint::ShaderEntryPoint(imr::ShaderModule& module, VkShaderStageFlagBits stage, const std::string& entrypoint_name) {
+    _impl = std::make_unique<Impl>(module, stage, entrypoint_name);
 }
+
+ShaderEntryPoint::Impl::Impl(imr::ShaderModule& module, VkShaderStageFlagBits stage, const std::string& name) : module(module), stage(stage), name(name) {
+    reflected = std::make_unique<ReflectedLayout>(module._impl->spirv_module, stage);
+}
+
+const std::string& ShaderEntryPoint::name() const { return _impl->name; }
+
+VkShaderStageFlagBits ShaderEntryPoint::stage() const { return _impl->stage; }
+
+ShaderEntryPoint::Impl::~Impl() = default;
 
 ShaderEntryPoint::~ShaderEntryPoint() = default;
 
 ComputePipeline::Impl::Impl(imr::Device& device, imr::ShaderEntryPoint& entry_point) : device(device) {
-    layout = std::make_unique<PipelineLayout>(device, *entry_point.reflected);
+    layout = std::make_unique<PipelineLayout>(device, *entry_point._impl->reflected);
 
     pipeline = VK_NULL_HANDLE;
     CHECK_VK_THROW(vkCreateComputePipelines(device.device, VK_NULL_HANDLE, 1, tmpPtr((VkComputePipelineCreateInfo) {
@@ -160,9 +182,9 @@ ComputePipeline::Impl::Impl(imr::Device& device, imr::ShaderEntryPoint& entry_po
             .stage = {
                     .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                     .flags = 0,
-                    .stage = entry_point.stage,
-                    .module = entry_point.module.vk_shader_module,
-                    .pName = entry_point.name.c_str(),
+                    .stage = entry_point.stage(),
+                    .module = entry_point._impl->module.vk_shader_module(),
+                    .pName = entry_point.name().c_str(),
             },
             .layout = layout->pipeline_layout,
     }), nullptr, &pipeline));
@@ -175,8 +197,7 @@ ComputePipeline::Impl::Impl(imr::Device& device, std::unique_ptr<ShaderModule>&&
 }
 
 ComputePipeline::ComputePipeline(imr::Device& device, std::string&& spirv_filename, std::string&& entrypoint_name) {
-    auto spirv_module = SPIRVModule(spirv_filename);
-    auto shader_module = std::make_unique<ShaderModule>(device, std::move(spirv_module));
+    auto shader_module = std::make_unique<ShaderModule>(device, std::move(spirv_filename));
     auto entry_point = std::make_unique<ShaderEntryPoint>(*shader_module, VK_SHADER_STAGE_COMPUTE_BIT, entrypoint_name);
     _impl = std::make_unique<ComputePipeline::Impl>(device, std::move(shader_module), std::move(entry_point));
 }

@@ -96,6 +96,30 @@ private:
     std::unique_ptr<Impl> _impl;
 };
 
+struct ShaderModule {
+    ShaderModule(imr::Device& device, std::string&& filename) noexcept(false);
+    ShaderModule(const ShaderModule&) = delete;
+    ShaderModule(ShaderModule&&) = default;
+
+    VkShaderModule vk_shader_module() const;
+
+    ~ShaderModule();
+
+    struct Impl;
+    std::unique_ptr<Impl> _impl;
+};
+
+struct ShaderEntryPoint {
+    ShaderEntryPoint(ShaderModule& module, VkShaderStageFlagBits stage, const std::string& entrypoint_name);
+    ~ShaderEntryPoint();
+
+    VkShaderStageFlagBits stage() const;
+    const std::string& name() const;
+
+    struct Impl;
+    std::unique_ptr<Impl> _impl;
+};
+
 /// Helper class that allocates, populates and binds descriptor sets for us
 /// Since it owns the descriptor sets internally, it must live as they are in use
 /// Therefore, it should not be stack-allocated inside e.g. the beginFrame lambda !
