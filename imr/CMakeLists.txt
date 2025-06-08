@@ -6,6 +6,7 @@ add_library(imr
         src/image.cpp
         src/fps_counter.cpp
         src/shader.cpp
+        src/graphics_pipeline.cpp
         src/frame.cpp
         src/present_helpers.cpp
         src/render_simplified.cpp

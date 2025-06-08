@@ -16,6 +16,13 @@ struct Device::Impl {
     std::vector<std::unique_ptr<Image>> images;
 };
 
+static inline void appendPNext(VkBaseOutStructure* base, VkBaseOutStructure* ext) {
+    while (base->pNext) {
+        base = base->pNext;
+    }
+    base->pNext = ext;
+}
+
 Image make_image_from(Device& device, VkImage existing_handle, VkImageType dim, VkExtent3D size, VkFormat format);
 
 }

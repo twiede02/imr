@@ -85,6 +85,11 @@ DescriptorBindHelper* ComputePipeline::create_bind_helper() {
     return new DescriptorBindHelper(std::move(impl));
 }
 
+DescriptorBindHelper* GraphicsPipeline::create_bind_helper() {
+    auto impl = std::make_unique<DescriptorBindHelper::Impl>(_impl->device_, *_impl->layout, _impl->final_layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
+    return new DescriptorBindHelper(std::move(impl));
+}
+
 VkImageViewType image_type_to_view_type(VkImageType type) {
     switch (type) {
         case VK_IMAGE_TYPE_1D: return VK_IMAGE_VIEW_TYPE_1D;

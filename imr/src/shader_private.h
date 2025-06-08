@@ -66,6 +66,17 @@ struct ComputePipeline::Impl {
     ~Impl();
 };
 
+struct GraphicsPipeline::Impl {
+    Impl(Device& device, std::vector<ShaderEntryPoint*>&& stages, RenderTargetsState, StateBuilder);
+
+    ~Impl();
+
+    Device& device_;
+    std::unique_ptr<PipelineLayout> layout;
+    ReflectedLayout final_layout;
+    VkPipeline pipeline;
+};
+
 }
 
 #endif

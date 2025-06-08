@@ -152,6 +152,50 @@ struct ComputePipeline {
     std::unique_ptr<Impl> _impl;
 };
 
+struct GraphicsPipeline {
+    struct RenderTarget {
+        VkFormat format;
+        VkPipelineColorBlendAttachmentState blending = {};
+    };
+
+    struct RenderTargetsState {
+        std::vector<RenderTarget> color;
+        std::optional<RenderTarget> depth;
+        VkPipelineColorBlendStateCreateInfo all_targets_blend_state = {};
+    };
+
+    struct StateBuilder {
+        std::optional<VkPipelineVertexInputStateCreateInfo>      vertexInputState;
+        std::optional<VkPipelineInputAssemblyStateCreateInfo>    inputAssemblyState;
+        std::optional<VkPipelineTessellationStateCreateInfo>     tessellationState;
+        std::optional<VkPipelineViewportStateCreateInfo>         viewportState;
+        std::optional<VkPipelineRasterizationStateCreateInfo>    rasterizationState;
+        std::optional<VkPipelineMultisampleStateCreateInfo>      multisampleState;
+        std::optional<VkPipelineDepthStencilStateCreateInfo>     depthStencilState;
+    };
+
+    // These helpers contain sensible defaults for most pieces of state
+    static VkPipelineViewportStateCreateInfo one_dynamically_sized_viewport();
+    static VkPipelineVertexInputStateCreateInfo no_vertex_input();
+    static VkPipelineInputAssemblyStateCreateInfo simple_triangle_input_assembly();
+    static VkPipelineMultisampleStateCreateInfo one_spp();
+    static VkPipelineRasterizationStateCreateInfo solid_filled_polygons();
+    static VkPipelineDepthStencilStateCreateInfo simple_depth_testing();
+
+    GraphicsPipeline(Device&, std::vector<ShaderEntryPoint*>&& stages, RenderTargetsState, StateBuilder);
+    GraphicsPipeline(const GraphicsPipeline&) = delete;
+    ~GraphicsPipeline();
+
+    VkPipeline pipeline() const;
+    VkPipelineLayout layout() const;
+    VkDescriptorSetLayout set_layout(unsigned) const;
+
+    DescriptorBindHelper* create_bind_helper();
+
+    struct Impl;
+    std::unique_ptr<Impl> _impl;
+};
+
 struct Swapchain {
     Swapchain(Device&, GLFWwindow* window);
     ~Swapchain();
