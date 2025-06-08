@@ -336,6 +336,20 @@ int main(int argc, char** argv) {
                 }),
             }));
 
+            VkViewport viewport {
+                    .width = static_cast<float>(image.size().width),
+                    .height = static_cast<float>(image.size().height),
+                    .maxDepth = 1.0f,
+            };
+            vkCmdSetViewport(cmdbuf, 0, 1, &viewport);
+            VkRect2D scissor = {
+                    .extent = {
+                            .width = image.size().width,
+                            .height = image.size().height,
+                    }
+            };
+            vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
+
             for (auto pos : positions) {
                 //add_render_barrier();
 
@@ -343,20 +357,6 @@ int main(int argc, char** argv) {
                 cube_matrix = cube_matrix * translate_mat4(pos);
 
                 push_constants_batched.matrix = cube_matrix;
-
-                VkViewport viewport {
-                    .width = static_cast<float>(image.size().width),
-                    .height = static_cast<float>(image.size().height),
-                    .maxDepth = 1.0f,
-                };
-                vkCmdSetViewport(cmdbuf, 0, 1, &viewport);
-                VkRect2D scissor = {
-                    .extent = {
-                        .width = image.size().width,
-                        .height = image.size().height,
-                    }
-                };
-                vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
                 vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants_batched), &push_constants_batched);
                 vkCmdDraw(cmdbuf, 12 * 3, 1, 0, 0);
             }
