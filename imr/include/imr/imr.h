@@ -113,7 +113,7 @@ struct DescriptorBindHelper {
 };
 
 struct ComputeShader {
-    ComputeShader(Device&, std::string&& name, std::string&& entrypoint_name = "main");
+    ComputeShader(Device&, std::string&& spirv_filename, std::string&& entrypoint_name = "main");
     ComputeShader(ComputeShader&) = delete;
     ~ComputeShader();
 

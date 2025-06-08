@@ -81,7 +81,7 @@ DescriptorBindHelper::DescriptorBindHelper(std::unique_ptr<imr::DescriptorBindHe
 DescriptorBindHelper::~DescriptorBindHelper() {}
 
 DescriptorBindHelper* ComputeShader::create_bind_helper() {
-    auto impl = std::make_unique<DescriptorBindHelper::Impl>(_impl->device, *_impl->layout, *_impl->reflected, VK_PIPELINE_BIND_POINT_COMPUTE);
+    auto impl = std::make_unique<DescriptorBindHelper::Impl>(_impl->device, *_impl->layout, *_impl->entry_point->reflected, VK_PIPELINE_BIND_POINT_COMPUTE);
     return new DescriptorBindHelper(std::move(impl));
 }
 

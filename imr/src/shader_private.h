@@ -11,6 +11,7 @@ struct SPIRVModule {
     std::string name;
 
     SPIRVModule(const std::string& filename) noexcept(false);
+    SPIRVModule(const SPIRVModule&) = delete;
     ~SPIRVModule();
 };
 
@@ -37,9 +38,10 @@ struct PipelineLayout {
 
 struct ShaderModule {
     imr::Device& device;
+    SPIRVModule&& spirv_module;
     VkShaderModule vk_shader_module;
 
-    ShaderModule(imr::Device& device, SPIRVModule& spirv_module) noexcept(false);
+    ShaderModule(imr::Device& device, SPIRVModule&& spirv_module) noexcept(false);
 
     ShaderModule(const ShaderModule&) = delete;
     ShaderModule(ShaderModule&&) = default;
@@ -47,14 +49,26 @@ struct ShaderModule {
     ~ShaderModule();
 };
 
+struct ShaderEntryPoint {
+    ShaderModule& module;
+    VkShaderStageFlagBits stage;
+    std::string name;
+    std::unique_ptr<ReflectedLayout> reflected;
+
+    ShaderEntryPoint(ShaderModule& module, VkShaderStageFlagBits stage, const std::string& entrypoint_name);
+    ~ShaderEntryPoint();
+};
+
 struct ComputeShader::Impl {
     Device& device;
-    std::unique_ptr<ReflectedLayout> reflected;
-    std::unique_ptr<ShaderModule> shader_module;
     std::unique_ptr<PipelineLayout> layout;
     VkPipeline pipeline;
 
-    Impl(imr::Device& device, std::string&& name, std::string&& entrypoint_name);
+    std::unique_ptr<ShaderModule> module;
+    std::unique_ptr<ShaderEntryPoint> entry_point;
+
+    Impl(imr::Device& device, std::unique_ptr<ShaderModule>&& module, std::unique_ptr<ShaderEntryPoint>&& ep);
+    Impl(imr::Device& device, ShaderEntryPoint& entry_point);
     ~Impl();
 };
 
