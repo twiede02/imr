@@ -115,6 +115,7 @@ struct ShaderEntryPoint {
 
     VkShaderStageFlagBits stage() const;
     const std::string& name() const;
+    const ShaderModule& module() const;
 
     struct Impl;
     std::unique_ptr<Impl> _impl;

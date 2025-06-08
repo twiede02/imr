@@ -14,6 +14,7 @@ struct ReflectedLayout {
     std::unordered_map<int, std::vector<VkDescriptorSetLayoutBinding>> set_bindings;
     std::vector<VkPushConstantRange> push_constants;
 
+    ReflectedLayout() = default;
     ReflectedLayout(SPIRVModule& spirv_module, VkShaderStageFlags stage);
     ReflectedLayout(ReflectedLayout& a, ReflectedLayout& b);
 };

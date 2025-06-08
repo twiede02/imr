@@ -61,7 +61,7 @@ ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFl
                     continue;
                 }
                 case AsInput:
-                case AsOutput: throw std::runtime_error("TODO");
+                case AsOutput: break;
                 case AsShaderStorageBufferObject:
                     desc_type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
                     break;
@@ -96,8 +96,31 @@ ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFl
 ReflectedLayout::ReflectedLayout(imr::ReflectedLayout& a, imr::ReflectedLayout& b) : push_constants(a.push_constants), set_bindings(a.set_bindings), stages(a.stages | b.stages) {
     if ((a.stages & b.stages) != 0)
         throw std::runtime_error("Overlap in stages");
-    for (auto [key, value] : set_bindings) {
-        throw std::runtime_error("TODO");
+    for (auto range_b : b.push_constants) {
+        // TODO: we assume no overlap
+        push_constants.push_back(range_b);
+    }
+    // add B to A
+    for (auto [set_b, bindings_b] : b.set_bindings) {
+        if (set_bindings.contains(set_b)) {
+            auto& bindings_a = set_bindings[set_b];
+            for (auto binding_b : bindings_b) {
+                bool merged = false;
+                for (size_t i = 0; i < bindings_a.size(); i++) {
+                    auto& binding_a = bindings_a[i];
+                    if (binding_a.binding == binding_b.binding) {
+                        if (binding_a.descriptorCount != binding_b.descriptorCount || binding_a.descriptorType != binding_b.descriptorType) {
+                            throw std::runtime_error("Incompatible bindings");
+                        }
+                        merged = true;
+                    }
+                }
+                if (!merged)
+                    bindings_a.push_back(binding_b);
+            }
+        } else {
+            set_bindings[set_b] = bindings_b;
+        }
     }
 }
 
@@ -165,6 +188,8 @@ ShaderEntryPoint::Impl::Impl(imr::ShaderModule& module, VkShaderStageFlagBits st
 }
 
 const std::string& ShaderEntryPoint::name() const { return _impl->name; }
+
+const ShaderModule& ShaderEntryPoint::module() const { return _impl->module; }
 
 VkShaderStageFlagBits ShaderEntryPoint::stage() const { return _impl->stage; }
 
