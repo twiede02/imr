@@ -112,10 +112,10 @@ struct DescriptorBindHelper {
     std::unique_ptr<Impl> _impl;
 };
 
-struct ComputeShader {
-    ComputeShader(Device&, std::string&& spirv_filename, std::string&& entrypoint_name = "main");
-    ComputeShader(ComputeShader&) = delete;
-    ~ComputeShader();
+struct ComputePipeline {
+    ComputePipeline(Device&, std::string&& spirv_filename, std::string&& entrypoint_name = "main");
+    ComputePipeline(ComputePipeline&) = delete;
+    ~ComputePipeline();
 
     VkPipeline pipeline() const;
     VkPipelineLayout layout() const;

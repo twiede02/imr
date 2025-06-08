@@ -29,7 +29,7 @@ int main() {
 
     imr::FpsCounter fps_counter;
 
-    imr::ComputeShader shader(device, "present_from_image.spv");
+    imr::ComputePipeline shader(device, "present_from_image.spv");
 
     VkDescriptorPool pool;
     vkCreateDescriptorPool(vk.device, tmpPtr((VkDescriptorPoolCreateInfo) {

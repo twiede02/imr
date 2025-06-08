@@ -150,7 +150,7 @@ ShaderEntryPoint::ShaderEntryPoint(imr::ShaderModule& module, VkShaderStageFlagB
 
 ShaderEntryPoint::~ShaderEntryPoint() = default;
 
-ComputeShader::Impl::Impl(imr::Device& device, imr::ShaderEntryPoint& entry_point) : device(device) {
+ComputePipeline::Impl::Impl(imr::Device& device, imr::ShaderEntryPoint& entry_point) : device(device) {
     layout = std::make_unique<PipelineLayout>(device, *entry_point.reflected);
 
     pipeline = VK_NULL_HANDLE;
@@ -168,27 +168,27 @@ ComputeShader::Impl::Impl(imr::Device& device, imr::ShaderEntryPoint& entry_poin
     }), nullptr, &pipeline));
 }
 
-ComputeShader::Impl::Impl(imr::Device& device, std::unique_ptr<ShaderModule>&& module, std::unique_ptr<ShaderEntryPoint>&& ep) : Impl(device, *ep) {
+ComputePipeline::Impl::Impl(imr::Device& device, std::unique_ptr<ShaderModule>&& module, std::unique_ptr<ShaderEntryPoint>&& ep) : Impl(device, *ep) {
     this->module = std::move(module);
     this->entry_point = std::move(ep);
     assert(this->module && this->entry_point);
 }
 
-ComputeShader::ComputeShader(imr::Device& device, std::string&& spirv_filename, std::string&& entrypoint_name) {
+ComputePipeline::ComputePipeline(imr::Device& device, std::string&& spirv_filename, std::string&& entrypoint_name) {
     auto spirv_module = SPIRVModule(spirv_filename);
     auto shader_module = std::make_unique<ShaderModule>(device, std::move(spirv_module));
     auto entry_point = std::make_unique<ShaderEntryPoint>(*shader_module, VK_SHADER_STAGE_COMPUTE_BIT, entrypoint_name);
-    _impl = std::make_unique<ComputeShader::Impl>(device, std::move(shader_module), std::move(entry_point));
+    _impl = std::make_unique<ComputePipeline::Impl>(device, std::move(shader_module), std::move(entry_point));
 }
 
-ComputeShader::Impl::~Impl() {
+ComputePipeline::Impl::~Impl() {
     vkDestroyPipeline(device.device, pipeline, nullptr);
 }
 
-VkPipeline ComputeShader::pipeline() const { return _impl->pipeline; }
-VkPipelineLayout ComputeShader::layout() const { return _impl->layout->pipeline_layout; }
-VkDescriptorSetLayout ComputeShader::set_layout(unsigned i) const { return _impl->layout->set_layouts[i]; }
+VkPipeline ComputePipeline::pipeline() const { return _impl->pipeline; }
+VkPipelineLayout ComputePipeline::layout() const { return _impl->layout->pipeline_layout; }
+VkDescriptorSetLayout ComputePipeline::set_layout(unsigned i) const { return _impl->layout->set_layouts[i]; }
 
-ComputeShader::~ComputeShader() {}
+ComputePipeline::~ComputePipeline() {}
 
 }

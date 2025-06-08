@@ -148,11 +148,11 @@ struct PreprocessedTri {
 TriDrawMode mode = SINGLE;
 
 struct Shaders {
-    imr::ComputeShader single;
-    imr::ComputeShader batched;
-    imr::ComputeShader instanced;
-    imr::ComputeShader pipelined_triangles;
-    imr::ComputeShader pipelined_raster;
+    imr::ComputePipeline single;
+    imr::ComputePipeline batched;
+    imr::ComputePipeline instanced;
+    imr::ComputePipeline pipelined_triangles;
+    imr::ComputePipeline pipelined_raster;
 
     Shaders(imr::Device& d) :
         single(d, "15_compute_cubes.spv"),

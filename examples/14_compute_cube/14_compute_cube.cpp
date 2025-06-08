@@ -98,7 +98,7 @@ int main() {
     imr::Device device(context);
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
-    imr::ComputeShader shader(device, "14_compute_cube.spv");
+    imr::ComputePipeline shader(device, "14_compute_cube.spv");
 
     auto cube = make_cube();
 

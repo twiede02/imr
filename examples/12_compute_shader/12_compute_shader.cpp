@@ -17,7 +17,7 @@ int main() {
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
     // this class takes care of various boilerplate setup for you
-    imr::ComputeShader shader(device, "12_compute_shader.spv");
+    imr::ComputePipeline shader(device, "12_compute_shader.spv");
 
     auto& vk = device.dispatch;
     while (!glfwWindowShouldClose(window)) {

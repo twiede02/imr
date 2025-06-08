@@ -59,7 +59,7 @@ struct ShaderEntryPoint {
     ~ShaderEntryPoint();
 };
 
-struct ComputeShader::Impl {
+struct ComputePipeline::Impl {
     Device& device;
     std::unique_ptr<PipelineLayout> layout;
     VkPipeline pipeline;

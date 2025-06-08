@@ -29,7 +29,7 @@ int main() {
     imr::Device device(context);
     imr::Swapchain swapchain(device, window);
     imr::FpsCounter fps_counter;
-    imr::ComputeShader shader(device, "13_compute_triangle.spv");
+    imr::ComputePipeline shader(device, "13_compute_triangle.spv");
 
     auto& vk = device.dispatch;
     while (!glfwWindowShouldClose(window)) {
