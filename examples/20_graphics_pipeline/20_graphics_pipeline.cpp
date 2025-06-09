@@ -276,79 +276,15 @@ int main(int argc, char** argv) {
 
             push_constants_batched.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
 
-            VkImageView color_view;
-            vkCreateImageView(device.device, tmpPtr((VkImageViewCreateInfo) {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .image = image.handle(),
-                .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format = image.format(),
-                .subresourceRange = image.whole_image_subresource_range(),
-            }), nullptr, &color_view);
+            context.frame().withRenderTargets(cmdbuf, { &image }, &*depthBuffer, [&]() {
+                for (auto pos : positions) {
+                    mat4 cube_matrix = m;
+                    cube_matrix = cube_matrix * translate_mat4(pos);
 
-            VkImageView depth_view;
-            vkCreateImageView(device.device, tmpPtr((VkImageViewCreateInfo) {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .image = depthBuffer->handle(),
-                .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format = depthBuffer->format(),
-                .subresourceRange = depthBuffer->whole_image_subresource_range(),
-            }), nullptr, &depth_view);
-
-            vkCmdBeginRendering(cmdbuf, tmpPtr((VkRenderingInfo) {
-                .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-                .renderArea = {
-                    .extent = {
-                        .width = image.size().width,
-                        .height = image.size().height,
-                    },
-                },
-                .layerCount = 1,
-                .viewMask = 0,
-                .colorAttachmentCount = 1,
-                .pColorAttachments = tmpPtr((VkRenderingAttachmentInfo) {
-                    .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-                    .imageView = color_view,
-                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-                    .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                }),
-                .pDepthAttachment = tmpPtr((VkRenderingAttachmentInfo) {
-                    .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-                    .imageView = depth_view,
-                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-                    .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                }),
-            }));
-
-            VkViewport viewport {
-                    .width = static_cast<float>(image.size().width),
-                    .height = static_cast<float>(image.size().height),
-                    .maxDepth = 1.0f,
-            };
-            vkCmdSetViewport(cmdbuf, 0, 1, &viewport);
-            VkRect2D scissor = {
-                    .extent = {
-                            .width = image.size().width,
-                            .height = image.size().height,
-                    }
-            };
-            vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
-
-            for (auto pos : positions) {
-                mat4 cube_matrix = m;
-                cube_matrix = cube_matrix * translate_mat4(pos);
-
-                push_constants_batched.matrix = cube_matrix;
-                vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants_batched), &push_constants_batched);
-                vkCmdDraw(cmdbuf, 12 * 3, 1, 0, 0);
-            }
-
-            vkCmdEndRendering(cmdbuf);
-
-            context.addCleanupAction([=, &device]() {
-                vkDestroyImageView(device.device, color_view, nullptr);
-                vkDestroyImageView(device.device, depth_view, nullptr);
+                    push_constants_batched.matrix = cube_matrix;
+                    vkCmdPushConstants(cmdbuf, pipeline->layout(), VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(push_constants_batched), &push_constants_batched);
+                    vkCmdDraw(cmdbuf, 12 * 3, 1, 0, 0);
+                }
             });
 
             auto now = imr_get_time_nano();

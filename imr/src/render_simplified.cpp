@@ -3,22 +3,24 @@
 namespace imr {
 
 struct SimplifiedRenderContextImpl : Swapchain::SimplifiedRenderContext {
-    Swapchain::Frame& frame;
+    Swapchain::Frame& frame_;
     VkCommandBuffer command_buffer;
 
-    SimplifiedRenderContextImpl(Swapchain::Frame& frame, VkCommandBuffer cmdbuf) : frame(frame), command_buffer(cmdbuf) {};
+    SimplifiedRenderContextImpl(Swapchain::Frame& frame, VkCommandBuffer cmdbuf) : frame_(frame), command_buffer(cmdbuf) {};
 
     Image& image() const override;
     VkCommandBuffer cmdbuf() const override;
+    Swapchain::Frame& frame() const override;
 
     void addCleanupAction(std::function<void(void)>&& fn) override;
 };
 
-Image& SimplifiedRenderContextImpl::image() const { return frame.image(); }
+Image& SimplifiedRenderContextImpl::image() const { return frame_.image(); }
 VkCommandBuffer SimplifiedRenderContextImpl::cmdbuf() const { return command_buffer; }
+Swapchain::Frame& SimplifiedRenderContextImpl::frame() const { return frame_; }
 
 void SimplifiedRenderContextImpl::addCleanupAction(std::function<void()>&& fn) {
-    frame.addCleanupAction(std::move(fn));
+    frame_.addCleanupAction(std::move(fn));
 }
 
 void Swapchain::renderFrameSimplified(std::function<void(SimplifiedRenderContext&)>&& fn) {

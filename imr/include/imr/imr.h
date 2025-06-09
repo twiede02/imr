@@ -219,6 +219,8 @@ struct Swapchain {
         void addCleanupFence(VkFence fence);
         void addCleanupAction(std::function<void(void)>&& fn);
 
+        void withRenderTargets(VkCommandBuffer, std::vector<Image*> color_images, Image* depth, std::function<void()> f);
+
         class Impl;
         std::unique_ptr<Impl> _impl;
 
@@ -236,6 +238,7 @@ struct Swapchain {
     struct SimplifiedRenderContext {
         virtual Image& image() const = 0;
         virtual VkCommandBuffer cmdbuf() const = 0;
+        virtual Swapchain::Frame& frame() const = 0;
 
         virtual void addCleanupAction(std::function<void(void)>&& fn) = 0;
     };

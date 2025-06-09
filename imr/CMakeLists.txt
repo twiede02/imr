@@ -11,6 +11,7 @@ add_library(imr
         src/present_helpers.cpp
         src/render_simplified.cpp
         src/descriptor_bind_helper.cpp
+        src/render_targets_helper.cpp
         src/execute_commands.cpp
         src/vma.cpp
         src/util.c
