@@ -77,8 +77,7 @@ Cube make_cube() {
 }
 
 struct {
-    VkDeviceAddress tri_buffer;
-    uint32_t tri_count;
+    VkDeviceAddress vertex_buffer;
     mat4 matrix;
     float time;
 } push_constants_batched;
@@ -160,19 +159,27 @@ int main(int argc, char** argv) {
 
     auto cube = make_cube();
 
-    std::unique_ptr<imr::Buffer> triangles_buffer;
+    std::unique_ptr<imr::Buffer> vertex_buffer;
     if (true) {
-        triangles_buffer = std::make_unique<imr::Buffer>(device, sizeof(cube.triangles), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-        triangles_buffer->uploadDataSync(0, sizeof(cube.triangles), cube.triangles);
-    }
+        vertex_buffer = std::make_unique<imr::Buffer>(device, sizeof(cube.triangles), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
-    std::unique_ptr<imr::Buffer> matrices_buffer;
-    if (true) {
-        matrices_buffer = std::make_unique<imr::Buffer>(device, sizeof(nasl::mat4) * INSTANCES_COUNT, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+        // the cube data is the same for all
+        std::vector<vec3> vertex_vector;
+        for (auto& tri : cube.triangles) {
+            vertex_vector.push_back(tri.v0);
+            vertex_vector.push_back(tri.v1);
+            vertex_vector.push_back(tri.v2);
+        }
+        for (auto& tri : cube.triangles) {
+            vertex_vector.push_back(tri.color);
+            vertex_vector.push_back(tri.color);
+            vertex_vector.push_back(tri.color);
+        }
+        push_constants_batched.vertex_buffer = vertex_buffer->device_address();
+        vertex_buffer->uploadDataSync(0, sizeof(vec3) * 3 * 12 * 2, vertex_vector.data());
     }
 
     std::vector<vec3> positions;
-
     for (size_t i = 0; i < INSTANCES_COUNT; i++) {
         vec3 p;
         p.x = ((float)rand() / RAND_MAX) * 20 - 10;
@@ -250,25 +257,10 @@ int main(int argc, char** argv) {
                     .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
                     .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
                     .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                    .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                    .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+                    .dstStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+                    .dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
                 })
             }));
-
-            auto add_render_barrier = [&]() {
-                vk.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
-                   .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
-                   .dependencyFlags = 0,
-                   .memoryBarrierCount = 1,
-                   .pMemoryBarriers = tmpPtr((VkMemoryBarrier2) {
-                       .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
-                       .srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                       .srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
-                       .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                       .dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
-                   })
-               }));
-            };
 
             // update the push constant data on the host...
             mat4 m = identity_mat4;
@@ -281,15 +273,8 @@ int main(int argc, char** argv) {
 
             auto& pipeline = shaders->pipeline;
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->pipeline());
-            //auto shader_bind_helper = pipeline->create_bind_helper();
-            //shader_bind_helper->set_storage_image(0, 0, image);
-            //shader_bind_helper->set_storage_image(0, 1, *depthBuffer);
-            //shader_bind_helper->commit(cmdbuf);
 
             push_constants_batched.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
-            // the cube data is the same for all
-            push_constants_batched.tri_buffer = triangles_buffer->device_address();
-            push_constants_batched.tri_count = 12;
 
             VkImageView color_view;
             vkCreateImageView(device.device, tmpPtr((VkImageViewCreateInfo) {
@@ -351,8 +336,6 @@ int main(int argc, char** argv) {
             vkCmdSetScissor(cmdbuf, 0, 1, &scissor);
 
             for (auto pos : positions) {
-                //add_render_barrier();
-
                 mat4 cube_matrix = m;
                 cube_matrix = cube_matrix * translate_mat4(pos);
 
@@ -364,7 +347,6 @@ int main(int argc, char** argv) {
             vkCmdEndRendering(cmdbuf);
 
             context.addCleanupAction([=, &device]() {
-                //delete shader_bind_helper;
                 vkDestroyImageView(device.device, color_view, nullptr);
                 vkDestroyImageView(device.device, depth_view, nullptr);
             });

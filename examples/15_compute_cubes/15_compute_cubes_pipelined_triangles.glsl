@@ -39,33 +39,25 @@ layout(scalar, push_constant) uniform T {
 } push_constants;
 
 PreprocessedTri processTri(Tri tri, mat4 matrix) {
-    vec4 os_v0 = vec4(tri.v0, 1);
-    vec4 os_v1 = vec4(tri.v1, 1);
-    vec4 os_v2 = vec4(tri.v2, 1);
-    vec4 v0 = matrix * os_v0;
-    vec4 v1 = matrix * os_v1;
-    vec4 v2 = matrix * os_v2;
+    vec4 v0 = matrix * vec4(tri.v0, 1);
+    vec4 v1 = matrix * vec4(tri.v1, 1);
+    vec4 v2 = matrix * vec4(tri.v2, 1);
     vec2 ss_v0 = vec2(v0.xy) / v0.w;
     vec2 ss_v1 = vec2(v1.xy) / v1.w;
     vec2 ss_v2 = vec2(v2.xy) / v2.w;
 
     vec4 pixelColor = vec4(tri.color, 1);
 
-    //PreprocessedTri empty = PreprocessedTri(vec4(0), vec4(0), vec4(0), vec2(0), vec2(0), vec2(0), vec3(0));
     return PreprocessedTri(v0, v1, v2, ss_v0, ss_v1, ss_v2, tri.color);
 }
 
 void main() {
-    if (gl_GlobalInvocationID.x >= push_constants.triangles_count || gl_GlobalInvocationID.y >= push_constants.matrices_count)
+    if (gl_GlobalInvocationID.x >= push_constants.triangles_count
+    || gl_GlobalInvocationID.y >= push_constants.matrices_count)
         return;
 
     uint tri_id = gl_GlobalInvocationID.y * push_constants.triangles_count + gl_GlobalInvocationID.x;
 
-    //for (int j = 0; j < push_constants.matrices_count; j++) {
-        mat4 matrix = push_constants.matrices_buffer.matrices[gl_GlobalInvocationID.y];
-        //for (int i = 0; i < push_constants.triangles_count; i++) {
-            push_constants.output_buffer.triangles[tri_id] = processTri(push_constants.triangles_buffer.triangles[gl_GlobalInvocationID.x], matrix);
-            //push_constants.output_buffer.triangles[tri_id].v0.x = float(tri_id);
-        //}
-    //}
+    mat4 matrix = push_constants.matrices_buffer.matrices[gl_GlobalInvocationID.y];
+    push_constants.output_buffer.triangles[tri_id] = processTri(push_constants.triangles_buffer.triangles[gl_GlobalInvocationID.x], matrix);
 }
