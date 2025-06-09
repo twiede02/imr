@@ -161,7 +161,7 @@ int main(int argc, char** argv) {
 
     std::unique_ptr<imr::Buffer> vertex_buffer;
     if (true) {
-        vertex_buffer = std::make_unique<imr::Buffer>(device, sizeof(cube.triangles), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+        vertex_buffer = std::make_unique<imr::Buffer>(device, sizeof(vec3) * 3 * 12 * 2, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
         // the cube data is the same for all
         std::vector<vec3> vertex_vector;
@@ -176,7 +176,7 @@ int main(int argc, char** argv) {
             vertex_vector.push_back(tri.color);
         }
         push_constants_batched.vertex_buffer = vertex_buffer->device_address();
-        vertex_buffer->uploadDataSync(0, sizeof(vec3) * 3 * 12 * 2, vertex_vector.data());
+        vertex_buffer->uploadDataSync(0, vertex_buffer->size, vertex_vector.data());
     }
 
     std::vector<vec3> positions;
