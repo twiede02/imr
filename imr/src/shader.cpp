@@ -20,11 +20,14 @@ namespace imr {
 SPIRVModule load_spirv_module(const std::string& filename) {
     size_t size;
     uint32_t* data;
-    if (!imr_read_file((std::filesystem::path(imr_get_executable_location()).parent_path().string() + "/" + filename).c_str(), &size, (unsigned char**) &data))
+    const char* loc = imr_get_executable_location();
+    if (!imr_read_file((std::filesystem::path(loc).parent_path().string() + "/" + filename).c_str(), &size, (unsigned char**) &data))
         throw std::runtime_error("Failed to read " + filename);
     SPIRVModule module;
     module.resize(size / 4);
     memcpy(module.data(), data, size);
+    free(data);
+    free((char*) loc);
     return module;
 }
 
