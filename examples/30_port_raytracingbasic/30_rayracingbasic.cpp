@@ -6,6 +6,12 @@
 #include <ctime>
 #include <memory>
 #include <filesystem>
+#include <cmath>
+#include "nasl/nasl.h"
+#include "nasl/nasl_mat.h"
+#include "../common/camera.h"
+
+using namespace nasl;
 
 // Holds data for a ray tracing scratch buffer that is used as a temporary storage
 struct RayTracingScratchBuffer
@@ -26,9 +32,23 @@ struct AccelerationStructure {
 class VulkanExample
 {
 public:
-    VkDevice device{ VK_NULL_HANDLE };
+	imr::Device device;
+
     std::string title = "Vulkan Example";
 	uint32_t apiVersion = VK_API_VERSION_1_1;
+    std::vector<const char*> enabledDeviceExtensions;
+    Camera camera;
+    CameraFreelookState camera_state = {
+        .fly_speed = 1.0f,
+        .mouse_sensitivity = 1,
+    };
+    CameraInput camera_input;
+    uint16_t width = 1280;
+    uint16_t height = 720;
+
+
+
+
 	PFN_vkGetBufferDeviceAddressKHR vkGetBufferDeviceAddressKHR;
 	PFN_vkCreateAccelerationStructureKHR vkCreateAccelerationStructureKHR;
 	PFN_vkDestroyAccelerationStructureKHR vkDestroyAccelerationStructureKHR;
@@ -92,10 +112,6 @@ public:
 	{
 		title = "Ray tracing basic";
 		settings.overlay = false;
-		camera.type = Camera::CameraType::lookat;
-		camera.setPerspective(60.0f, (float)width / (float)height, 0.1f, 512.0f);
-		camera.setRotation(glm::vec3(0.0f, 0.0f, 0.0f));
-		camera.setTranslation(glm::vec3(0.0f, 0.0f, -2.5f));
 
 		// Ray tracing related extensions required by this sample
 		enabledDeviceExtensions.push_back(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME);
@@ -129,31 +145,18 @@ public:
 		vkDestroyAccelerationStructureKHR(device, topLevelAS.handle, nullptr);
 	}
 
+ 
+
 	/*	
 		Create a scratch buffer to hold temporary data for a ray tracing acceleration structure
 	*/
-	RayTracingScratchBuffer createScratchBuffer(VkDeviceSize size)
+	imr::Buffer createScratchBuffer(VkDeviceSize size)
 	{
-        {
-            imr::Buffer scratchBuffer{};
-            VkBufferCreateInfo bufferCreateInfo{};
-            bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-            bufferCreateInfo.size = size;
-            bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-            VK_CHECK_RESULT(vkCreateBuffer(device, &bufferCreateInfo, nullptr, &scratchBuffer.handle));
-        }
+		imr::Buffer scratchBuffer = imr::Buffer(device, size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
+	
 
-
-
-		{RayTracingScratchBuffer scratchBuffer{};
-
-		VkBufferCreateInfo bufferCreateInfo{};
-		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		bufferCreateInfo.size = size;
-		bufferCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-		VK_CHECK_RESULT(vkCreateBuffer(device, &bufferCreateInfo, nullptr, &scratchBuffer.handle));
-
+	
 		VkMemoryRequirements memoryRequirements{};
 		vkGetBufferMemoryRequirements(device, scratchBuffer.handle, &memoryRequirements);
 
@@ -174,7 +177,7 @@ public:
 		bufferDeviceAddressInfo.buffer = scratchBuffer.handle;
 		scratchBuffer.deviceAddress = vkGetBufferDeviceAddressKHR(device, &bufferDeviceAddressInfo);
 
-		return scratchBuffer;}
+		return scratchBuffer;
 	}
 
 	void deleteScratchBuffer(RayTracingScratchBuffer& scratchBuffer) 
@@ -225,29 +228,21 @@ public:
 	*/
 	void createStorageImage()
 	{
-		VkImageCreateInfo image = vks::initializers::imageCreateInfo();
-		image.imageType = VK_IMAGE_TYPE_2D;
-		image.format = swapChain.colorFormat;
-		image.extent.width = width;
-		image.extent.height = height;
-		image.extent.depth = 1;
-		image.mipLevels = 1;
-		image.arrayLayers = 1;
-		image.samples = VK_SAMPLE_COUNT_1_BIT;
-		image.tiling = VK_IMAGE_TILING_OPTIMAL;
-		image.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-		image.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		VK_CHECK_RESULT(vkCreateImage(device, &image, nullptr, &storageImage.image));
+
+        imr::Image image(device, VK_IMAGE_TYPE_2D, {width, height, 1}, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+
 
 		VkMemoryRequirements memReqs;
 		vkGetImageMemoryRequirements(device, storageImage.image, &memReqs);
-		VkMemoryAllocateInfo memoryAllocateInfo = vks::initializers::memoryAllocateInfo();
+		VkMemoryAllocateInfo memoryAllocateInfo = VkMemoryAllocateInfo();
+        memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 		memoryAllocateInfo.allocationSize = memReqs.size;
 		memoryAllocateInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 		VK_CHECK_RESULT(vkAllocateMemory(device, &memoryAllocateInfo, nullptr, &storageImage.memory));
 		VK_CHECK_RESULT(vkBindImageMemory(device, storageImage.image, storageImage.memory, 0));
 
-		VkImageViewCreateInfo colorImageView = vks::initializers::imageViewCreateInfo();
+		VkImageViewCreateInfo colorImageView = VkImageViewCreateInfo();
+		colorImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
 		colorImageView.format = swapChain.colorFormat;
 		colorImageView.subresourceRange = {};
@@ -369,7 +364,7 @@ public:
 		vkCreateAccelerationStructureKHR(device, &accelerationStructureCreateInfo, nullptr, &bottomLevelAS.handle);
 
 		// Create a small scratch buffer used during build of the bottom level acceleration structure
-		RayTracingScratchBuffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
+		imr::Buffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
 
 		VkAccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo{};
 		accelerationBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
@@ -425,7 +420,7 @@ public:
 		instance.accelerationStructureReference = bottomLevelAS.deviceAddress;
 
 		// Buffer for instance data
-		vks::Buffer instancesBuffer;
+		imr::Buffer instancesBuffer;
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(
 			VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -476,7 +471,7 @@ public:
 		vkCreateAccelerationStructureKHR(device, &accelerationStructureCreateInfo, nullptr, &topLevelAS.handle);
 
 		// Create a small scratch buffer used during build of the top level acceleration structure
-		RayTracingScratchBuffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
+		imr::Buffer scratchBuffer = createScratchBuffer(accelerationStructureBuildSizesInfo.buildScratchSize);
 
 		VkAccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo{};
 		accelerationBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
