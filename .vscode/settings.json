@@ -1,0 +1,20 @@
+{
+    "files.associations": {
+        "cstddef": "cpp",
+        "format": "cpp",
+        "fstream": "cpp",
+        "functional": "cpp",
+        "__config": "cpp",
+        "__node_handle": "cpp",
+        "print": "cpp",
+        "cmath": "cpp",
+        "random": "cpp",
+        "cstdio": "cpp",
+        "string_view": "cpp",
+        "map": "cpp",
+        "set": "cpp",
+        "string": "cpp",
+        "unordered_map": "cpp",
+        "unordered_set": "cpp"
+    }
+}

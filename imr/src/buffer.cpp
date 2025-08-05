@@ -11,7 +11,7 @@ struct Buffer::Impl {
     VmaAllocationInfo allocation_info;
 };
 
-Buffer::Buffer(imr::Device& device, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_property) : size(size) {
+Buffer::Buffer(imr::Device& device, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_property, void* initial_data) : size(size) {
     _impl = std::make_unique<Impl>(device, usage, memory_property);
     VkBufferCreateInfo buffer_ci = {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -28,6 +28,10 @@ Buffer::Buffer(imr::Device& device, size_t size, VkBufferUsageFlags usage, VkMem
     CHECK_VK(vmaCreateBuffer(device._impl->allocator, &buffer_ci, &vma_aci, &handle, &_impl->allocation, &_impl->allocation_info), throw std::exception());
     memory = _impl->allocation_info.deviceMemory;
     memory_offset = _impl->allocation_info.offset;
+
+    if (initial_data) {
+        uploadDataSync(0, size, initial_data);
+    }
 }
 
 VkDeviceAddress Buffer::device_address() {

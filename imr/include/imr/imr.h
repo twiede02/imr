@@ -56,7 +56,7 @@ struct Device {
 };
 
 struct Buffer {
-    Buffer(Device&, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_property = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    Buffer(Device&, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags memory_property = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, void* initial_data = nullptr);
     Buffer(Buffer&) = delete;
     ~Buffer();
 
