@@ -969,3 +969,9 @@ public:
 };
 
 VULKAN_EXAMPLE_MAIN()
+
+int main() {
+    std::printf("Hello world\n");
+    return 0;
+}
+
