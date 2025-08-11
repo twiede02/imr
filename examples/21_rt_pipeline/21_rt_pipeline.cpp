@@ -7,6 +7,36 @@
 #include <memory>
 #include <filesystem>
 
+struct Shaders {
+    std::vector<std::string> files = {
+        "21_shader.rgen.spv",
+        "21_shader.rmiss.spv",
+        "21_shader.rchit.spv"
+    };
+
+    std::vector<std::unique_ptr<imr::ShaderModule>> modules;
+    std::vector<std::unique_ptr<imr::ShaderEntryPoint>> entry_points;
+    std::unique_ptr<imr::RayTracingPipeline> pipeline;
+
+    Shaders(imr::Device& d, imr::Swapchain& swapchain) {
+        std::vector<imr::ShaderEntryPoint*> entry_point_ptrs;
+        for (auto filename : files) {
+            VkShaderStageFlagBits stage;
+            if (filename.ends_with("vert.spv"))
+                stage = VK_SHADER_STAGE_VERTEX_BIT;
+            else if (filename.ends_with("frag.spv"))
+                stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+            else
+                throw std::runtime_error("Unknown suffix");
+
+            modules.push_back(std::make_unique<imr::ShaderModule>(d, std::move(filename)));
+            entry_points.push_back(std::make_unique<imr::ShaderEntryPoint>(*modules.back(), stage, "main"));
+            entry_point_ptrs.push_back(entry_points.back().get());
+        }
+        pipeline = std::make_unique<imr::RayTracingPipeline>(d, std::move(entry_point_ptrs));
+    }
+};
+
 int main() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -18,6 +48,7 @@ int main() {
     imr::FpsCounter fps_counter;
     // this class takes care of various boilerplate setup for you
     imr::ComputePipeline shader(device, "12_compute_shader.spv");
+
 
     auto& vk = device.dispatch;
     while (!glfwWindowShouldClose(window)) {

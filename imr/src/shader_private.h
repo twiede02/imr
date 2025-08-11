@@ -66,6 +66,28 @@ struct ComputePipeline::Impl {
     ~Impl();
 };
 
+struct RayTracingPipeline::Impl {
+    Device& device_;
+    std::unique_ptr<PipelineLayout> layout;
+    VkPipeline pipeline;
+
+    std::vector<std::unique_ptr<ShaderEntryPoint>> entry_points;
+
+    // Shader Binding Table
+    std::unique_ptr<Buffer> sbt_buffer;
+    VkStridedDeviceAddressRegionKHR raygen_region{};
+    VkStridedDeviceAddressRegionKHR miss_region{};
+    VkStridedDeviceAddressRegionKHR hit_region{};
+    VkStridedDeviceAddressRegionKHR callable_region{};
+
+    void create_shader_binding_table();
+
+    Impl(imr::Device& device,
+         std::vector<ShaderEntryPoint*>&& stages);
+
+    ~Impl();
+};
+
 struct GraphicsPipeline::Impl {
     Impl(Device& device, std::vector<ShaderEntryPoint*>&& stages, RenderTargetsState, StateBuilder);
 

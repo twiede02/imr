@@ -31,6 +31,18 @@ struct Context {
     std::vector<vkb::PhysicalDevice> available_devices(std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
 };
 
+struct RTContext {
+    RTContext(std::function<void(vkb::InstanceBuilder&)>&& instance_custom = [](auto&) {});
+    RTContext(RTContext&) = delete;
+    ~RTContext();
+
+    vkb::Instance instance;
+    vkb::InstanceDispatchTable dispatch;
+
+    std::vector<vkb::PhysicalDevice> available_devices(std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
+};
+
+
 struct Device {
     Device(Context&, std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
     Device(Context&, vkb::PhysicalDevice);
@@ -147,6 +159,28 @@ struct ComputePipeline {
     VkDescriptorSetLayout set_layout(unsigned) const;
 
     DescriptorBindHelper* create_bind_helper();
+
+    struct Impl;
+    std::unique_ptr<Impl> _impl;
+};
+
+struct RayTracingPipeline {
+    RayTracingPipeline(imr::Device& d, std::vector<ShaderEntryPoint*>&& stages);
+
+    RayTracingPipeline(const RayTracingPipeline&) = delete;
+    ~RayTracingPipeline();
+
+    VkPipeline pipeline() const;
+    VkPipelineLayout layout() const;
+    VkDescriptorSetLayout set_layout(unsigned index) const;
+
+    DescriptorBindHelper* create_bind_helper();
+
+    // SBT management:
+    void create_shader_binding_table();
+    VkStridedDeviceAddressRegionKHR get_raygen_region() const;
+    VkStridedDeviceAddressRegionKHR get_miss_region() const;
+    VkStridedDeviceAddressRegionKHR get_hit_region() const;
 
     struct Impl;
     std::unique_ptr<Impl> _impl;
