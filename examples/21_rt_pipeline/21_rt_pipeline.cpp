@@ -7,22 +7,20 @@
 #include <memory>
 #include <filesystem>
 
-class kek{
+
 	// Ray tracing acceleration structure
 	struct AccelerationStructure {
 		VkAccelerationStructureKHR handle;
 		std::unique_ptr<imr::Buffer> buffer;
 		VkDeviceAddress deviceAddress;
-	};
-	public:
-	// Constructor that initializes the device member
-	kek(imr::Device& d) : device(d) {}
+	};	
 
 	std::unique_ptr<imr::Buffer> vertexBuffer;
 	std::unique_ptr<imr::Buffer> indexBuffer;
 	uint32_t indexCount;
 	std::unique_ptr<imr::Buffer> transformBuffer;
-	imr::Device& device;
+	imr::Context context;
+    imr::Device device(context);
 
 	AccelerationStructure bottomLevelAS{};
 	AccelerationStructure topLevelAS{};
@@ -273,7 +271,7 @@ class kek{
 		topLevelAS.deviceAddress = vkGetAccelerationStructureDeviceAddressKHR(device.device.device, &accelerationDeviceAddressInfo);
 	}
 
-    };
+    
 
 
 
@@ -296,12 +294,12 @@ struct Shaders {
         std::vector<imr::ShaderEntryPoint*> entry_point_ptrs;
         for (auto filename : files) {
             VkShaderStageFlagBits stage;
-            if (filename.ends_with("vert.spv"))
-                stage = VK_SHADER_STAGE_VERTEX_BIT;
-            else if (filename.ends_with("frag.spv"))
-                stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-            else
-                throw std::runtime_error("Unknown suffix");
+			if (filename.size() >= 8 && filename.compare(filename.size() - 8, 8, "vert.spv") == 0)
+				stage = VK_SHADER_STAGE_VERTEX_BIT;
+			else if (filename.size() >= 8 && filename.compare(filename.size() - 8, 8, "frag.spv") == 0)
+				stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+			else
+				throw std::runtime_error("Unknown suffix");
 
             modules.push_back(std::make_unique<imr::ShaderModule>(d, std::move(filename)));
             entry_points.push_back(std::make_unique<imr::ShaderEntryPoint>(*modules.back(), stage, "main"));
@@ -320,11 +318,10 @@ int main() {
 
 	
 
-    imr::Context context;
-    imr::Device device(context);
-    kek k(device);
-    k.createBottomLevelAccelerationStructure();
-	k.createTopLevelAccelerationStructure();
+    
+ 
+    createBottomLevelAccelerationStructure();
+	createTopLevelAccelerationStructure();
 
 
     imr::Swapchain swapchain(device, window);
