@@ -19,6 +19,9 @@ vec3 camera_get_forward_vec(const Camera* cam, vec3 forward = vec3(0, 0, -1));
 vec3 camera_get_right_vec(const Camera*);
 mat4 camera_get_view_mat4(const Camera*, size_t, size_t);
 
+mat4 camera_get_pure_view_mat4(const Camera* camera);
+mat4 camera_get_proj_mat4(const Camera* camera, size_t width, size_t height);
+
 typedef struct {
     float fly_speed, mouse_sensitivity;
     double last_mouse_x, last_mouse_y;

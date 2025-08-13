@@ -23,9 +23,9 @@ Buffer::Buffer(imr::Device& device, size_t size, VkBufferUsageFlags usage, VkMem
     VmaAllocationCreateInfo vma_aci = {
         .flags = 0,
         .usage = VMA_MEMORY_USAGE_UNKNOWN,
-        .requiredFlags = memory_property
+        .requiredFlags = memory_property,
     };
-    CHECK_VK(vmaCreateBuffer(device._impl->allocator, &buffer_ci, &vma_aci, &handle, &_impl->allocation, &_impl->allocation_info), throw std::exception());
+    CHECK_VK(vmaCreateBufferWithAlignment(device._impl->allocator, &buffer_ci, &vma_aci, 256, &handle, &_impl->allocation, &_impl->allocation_info), throw std::exception());
     memory = _impl->allocation_info.deviceMemory;
     memory_offset = _impl->allocation_info.offset;
 

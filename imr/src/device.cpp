@@ -29,26 +29,7 @@ static auto make_default_device_selector(Context& context) {
         .add_required_extension_features((VkPhysicalDeviceDynamicRenderingFeaturesKHR) {
                 .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR,
                 .dynamicRendering = VK_TRUE
-        })
-
-
-        .add_required_extension_features((VkPhysicalDeviceRayTracingPipelineFeaturesKHR){
-                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR,
-                .rayTracingPipeline = VK_TRUE,
-                })
-
-        .add_required_extension_features((VkPhysicalDeviceAccelerationStructureFeaturesKHR){
-                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR,
-                .accelerationStructure = VK_TRUE,
-                })
-
-        .add_required_extension_features((VkPhysicalDeviceDescriptorIndexingFeatures){
-                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES,
-                .runtimeDescriptorArray = VK_TRUE,
-                // .descriptorBindingPartiallyBound = VK_TRUE,
-                // .descriptorBindingUpdateAfterBind = VK_TRUE,
-                })
-        ;
+        });
 
     return device_selector;
 }

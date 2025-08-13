@@ -21,6 +21,18 @@ mat4 camera_get_view_mat4(const Camera* camera, size_t width, size_t height) {
     return matrix;
 }
 
+mat4 camera_get_pure_view_mat4(const Camera* camera) {
+    mat4 matrix = identity_mat4;
+    matrix = mul_mat4(translate_mat4(vec3_neg(camera->position)), matrix);
+    matrix = mul_mat4(camera_rotation_matrix(camera), matrix);
+    return matrix;
+}
+
+mat4 camera_get_proj_mat4(const Camera* camera, size_t width, size_t height) {
+    float ratio = ((float) width) / ((float) height);
+    return perspective_mat4(ratio, camera->fov, 0.1f, 1000.f);
+}
+
 mat4 rotate_axis_mat4f(unsigned int axis, float f) {
     mat4 m = { 0 };
     m.elems.m33 = 1;
