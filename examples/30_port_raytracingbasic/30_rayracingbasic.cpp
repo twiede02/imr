@@ -18,13 +18,6 @@ void camera_update(GLFWwindow*, CameraInput* input);
 
 using namespace nasl;
 
-// Ray tracing acceleration structure
-struct AccelerationStructure {
-    VkAccelerationStructureKHR handle;
-    std::unique_ptr<imr::Buffer> buffer;
-    VkDeviceAddress deviceAddress;
-};
-
 class VulkanExample
 {
 public:
@@ -62,8 +55,8 @@ public:
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR enabledRayTracingPipelineFeatures{};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR enabledAccelerationStructureFeatures{};
 
-    AccelerationStructure bottomLevelAS{};
-    AccelerationStructure topLevelAS{};
+    imr::AccelerationStructure bottomLevelAS{};
+    imr::AccelerationStructure topLevelAS{};
 
     std::unique_ptr<imr::Buffer> vertexBuffer;
     std::unique_ptr<imr::Buffer> indexBuffer;
@@ -153,9 +146,9 @@ public:
         return std::make_unique<imr::Buffer>(*device, size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
     }
 
-    void createAccelerationStructureBuffer(AccelerationStructure &accelerationStructure, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo) {
-        accelerationStructure.buffer = std::make_unique<imr::Buffer>(*device, buildSizeInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-    }
+    // void createAccelerationStructureBuffer(imr::AccelerationStructure &accelerationStructure, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo) {
+    //     accelerationStructure.buffer = std::make_unique<imr::Buffer>(*device, buildSizeInfo.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+    // }
 
     /*
         Set up a storage image that the ray generation shader will be writing to
@@ -263,7 +256,7 @@ public:
             &numTriangles,
             &accelerationStructureBuildSizesInfo);
 
-        createAccelerationStructureBuffer(bottomLevelAS, accelerationStructureBuildSizesInfo);
+        bottomLevelAS.createBuffer(*device, accelerationStructureBuildSizesInfo);
 
         VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo{};
         accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
@@ -365,7 +358,7 @@ public:
             &primitive_count,
             &accelerationStructureBuildSizesInfo);
 
-        createAccelerationStructureBuffer(topLevelAS, accelerationStructureBuildSizesInfo);
+        topLevelAS.createBuffer(*device, accelerationStructureBuildSizesInfo);
 
         VkAccelerationStructureCreateInfoKHR accelerationStructureCreateInfo{};
         accelerationStructureCreateInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;

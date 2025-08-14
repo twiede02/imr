@@ -31,18 +31,6 @@ struct Context {
     std::vector<vkb::PhysicalDevice> available_devices(std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
 };
 
-struct RTContext {
-    RTContext(std::function<void(vkb::InstanceBuilder&)>&& instance_custom = [](auto&) {});
-    RTContext(RTContext&) = delete;
-    ~RTContext();
-
-    vkb::Instance instance;
-    vkb::InstanceDispatchTable dispatch;
-
-    std::vector<vkb::PhysicalDevice> available_devices(std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
-};
-
-
 struct Device {
     Device(Context&, std::function<void(vkb::PhysicalDeviceSelector&)>&& device_custom = [](auto&) {});
     Device(Context&, vkb::PhysicalDevice);
@@ -225,6 +213,22 @@ struct GraphicsPipeline {
     VkDescriptorSetLayout set_layout(unsigned) const;
 
     DescriptorBindHelper* create_bind_helper();
+
+    struct Impl;
+    std::unique_ptr<Impl> _impl;
+};
+
+// Ray tracing acceleration structure
+struct AccelerationStructure {
+    AccelerationStructure();
+    AccelerationStructure(AccelerationStructure&) = delete;
+    ~AccelerationStructure();
+
+    VkAccelerationStructureKHR handle;
+    std::unique_ptr<Buffer> buffer;
+    VkDeviceAddress deviceAddress;
+
+    void createBuffer(Device& device, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo);
 
     struct Impl;
     std::unique_ptr<Impl> _impl;

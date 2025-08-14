@@ -16,6 +16,7 @@ add_library(imr
         src/execute_commands.cpp
         src/vma.cpp
         src/util.c
+        src/accelerationStructure.cpp
 )
 target_include_directories(imr PUBLIC "include")
 target_link_libraries(imr PUBLIC glfw Vulkan::Vulkan vk-bootstrap::vk-bootstrap GPUOpen::VulkanMemoryAllocator shady::driver)
