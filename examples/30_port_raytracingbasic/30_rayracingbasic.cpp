@@ -496,19 +496,22 @@ public:
         resultImageWrite.pImageInfo = &storageImageDescriptor;
         resultImageWrite.descriptorCount = 1;
 
-		VkWriteDescriptorSet uniformBufferWrite = {
-			.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-			.dstSet = descriptorSet,
-			.dstBinding = 2,
 
-			.descriptorCount = 1,
-			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			.pBufferInfo = tmpPtr<VkDescriptorBufferInfo>((VkDescriptorBufferInfo) {
-				.buffer = ubo->handle,
-				.offset = 0,
-				.range = ubo->size,
-			})
-		};
+        VkDescriptorBufferInfo dbi = {
+            .buffer = ubo->handle,
+            .offset = 0,
+            .range = ubo->size,
+        };
+
+        VkWriteDescriptorSet uniformBufferWrite = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = descriptorSet,
+            .dstBinding = 2,
+
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .pBufferInfo = &dbi
+        };
 
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
 			accelerationStructureWrite,
