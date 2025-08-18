@@ -228,8 +228,11 @@ struct AccelerationStructure {
     std::unique_ptr<Buffer> buffer;
     VkDeviceAddress deviceAddress;
 
-    void createBuffer(Device& device, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo);
     void createBottomLevelAccelerationStructure(Device& device, Buffer& vertexBuffer, Buffer& indexBuffer, Buffer& transformBuffer);
+    void createTopLevelAccelerationStructure(Device& device, AccelerationStructure& bottomLevelAS);
+
+    private:
+    void createBuffer(Device& device, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo);
 
     struct Impl;
     std::unique_ptr<Impl> _impl;
