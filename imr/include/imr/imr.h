@@ -229,6 +229,7 @@ struct AccelerationStructure {
     VkDeviceAddress deviceAddress;
 
     void createBuffer(Device& device, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo);
+    void createBottomLevelAccelerationStructure(Device& device, Buffer& vertexBuffer, Buffer& indexBuffer, Buffer& transformBuffer);
 
     struct Impl;
     std::unique_ptr<Impl> _impl;
