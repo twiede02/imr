@@ -56,8 +56,8 @@ public:
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR enabledRayTracingPipelineFeatures{};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR enabledAccelerationStructureFeatures{};
 
-    std::vector<imr::AccelerationStructure*> bottomLevelAS;
-    imr::AccelerationStructure topLevelAS{};
+    std::unique_ptr<imr::AccelerationStructure> bottomLevelAS;
+    std::unique_ptr<imr::AccelerationStructure> topLevelAS;
 
     std::unique_ptr<imr::Buffer> vertexBuffer;
     std::unique_ptr<imr::Buffer> indexBuffer;
@@ -276,7 +276,8 @@ public:
         VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo{};
         descriptorAccelerationStructureInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
         descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
-        descriptorAccelerationStructureInfo.pAccelerationStructures = &topLevelAS.handle;
+        auto lmao = topLevelAS->handle();
+        descriptorAccelerationStructureInfo.pAccelerationStructures = &lmao;
 
         VkWriteDescriptorSet accelerationStructureWrite{};
         accelerationStructureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -560,11 +561,20 @@ public:
 
         // Create the acceleration structures used to render the ray traced scene
         prepareGeometry();
+        bottomLevelAS = std::make_unique<imr::AccelerationStructure>(*device);
+        bottomLevelAS->createBottomLevelAccelerationStructure(*device, *vertexBuffer, *indexBuffer, *transformBuffer);
+        topLevelAS = std::make_unique<imr::AccelerationStructure>(*device);
+
+        std::vector<std::tuple<VkTransformMatrixKHR, imr::AccelerationStructure*>> instances;
         for(int i = 0; i<3; i++){
-            bottomLevelAS.emplace_back(new imr::AccelerationStructure());
-            bottomLevelAS.back()->createBottomLevelAccelerationStructure(*device, *vertexBuffer, *indexBuffer, *transformBuffer);
+            VkTransformMatrixKHR transformMatrix = {
+                1.0f, 0.0f, 0.0f, i * 6.0f,
+                0.0f, 1.0f, 0.0f, 0.0f,
+                0.0f, 0.0f, 1.0f, 0.0f,
+            };
+            instances.emplace_back(transformMatrix, &*bottomLevelAS);
         }
-        topLevelAS.createTopLevelAccelerationStructure(*device, bottomLevelAS);
+        topLevelAS->createTopLevelAccelerationStructure(*device, instances);
 
         createStorageImage();
         createUniformBuffer();

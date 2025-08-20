@@ -220,20 +220,17 @@ struct GraphicsPipeline {
 
 // Ray tracing acceleration structure
 struct AccelerationStructure {
-    AccelerationStructure();
+    AccelerationStructure(Device&);
     AccelerationStructure(AccelerationStructure&) = delete;
     ~AccelerationStructure();
 
-    VkAccelerationStructureKHR handle;
-    std::unique_ptr<Buffer> buffer;
-    VkDeviceAddress deviceAddress;
+    VkAccelerationStructureKHR handle() const;
+    VkDeviceAddress deviceAddress() const;
 
     void createBottomLevelAccelerationStructure(Device& device, Buffer& vertexBuffer, Buffer& indexBuffer, Buffer& transformBuffer);
-    void createTopLevelAccelerationStructure(Device& device, std::vector<AccelerationStructure*>& bottomLevelAS);
+    void createTopLevelAccelerationStructure(Device& device, std::vector<std::tuple<VkTransformMatrixKHR, AccelerationStructure*>>& bottomLevelAS);
 
-    private:
-    void createBuffer(Device& device, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo);
-
+private:
     struct Impl;
     std::unique_ptr<Impl> _impl;
 };
