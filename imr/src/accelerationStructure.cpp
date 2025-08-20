@@ -114,7 +114,7 @@ void AccelerationStructure::createBottomLevelAccelerationStructure(Device& devic
     deviceAddress = vk.getAccelerationStructureDeviceAddressKHR(&accelerationDeviceAddressInfo);
 }
 
-void AccelerationStructure::createTopLevelAccelerationStructure(Device& device, AccelerationStructure& bottomLevelAS)
+void AccelerationStructure::createTopLevelAccelerationStructure(Device& device, std::vector<AccelerationStructure*>& bottomLevelAS)
 {
     auto& vk = device.dispatch;
     VkTransformMatrixKHR transformMatrix = {
@@ -128,7 +128,7 @@ void AccelerationStructure::createTopLevelAccelerationStructure(Device& device, 
     instance.mask = 0xFF;
     instance.instanceShaderBindingTableRecordOffset = 0;
     instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-    instance.accelerationStructureReference = bottomLevelAS.deviceAddress;
+    instance.accelerationStructureReference = bottomLevelAS[0]->deviceAddress;
 
     // Buffer for instance data
     imr::Buffer instancesBuffer = imr::Buffer(device, sizeof(VkAccelerationStructureInstanceKHR),

@@ -56,7 +56,7 @@ public:
     VkPhysicalDeviceRayTracingPipelineFeaturesKHR enabledRayTracingPipelineFeatures{};
     VkPhysicalDeviceAccelerationStructureFeaturesKHR enabledAccelerationStructureFeatures{};
 
-    imr::AccelerationStructure bottomLevelAS{};
+    std::vector<imr::AccelerationStructure*> bottomLevelAS;
     imr::AccelerationStructure topLevelAS{};
 
     std::unique_ptr<imr::Buffer> vertexBuffer;
@@ -560,7 +560,10 @@ public:
 
         // Create the acceleration structures used to render the ray traced scene
         prepareGeometry();
-        bottomLevelAS.createBottomLevelAccelerationStructure(*device, *vertexBuffer, *indexBuffer, *transformBuffer);
+        for(int i = 0; i<3; i++){
+            bottomLevelAS.emplace_back(new imr::AccelerationStructure());
+            bottomLevelAS.back()->createBottomLevelAccelerationStructure(*device, *vertexBuffer, *indexBuffer, *transformBuffer);
+        }
         topLevelAS.createTopLevelAccelerationStructure(*device, bottomLevelAS);
 
         createStorageImage();

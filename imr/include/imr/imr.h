@@ -229,7 +229,7 @@ struct AccelerationStructure {
     VkDeviceAddress deviceAddress;
 
     void createBottomLevelAccelerationStructure(Device& device, Buffer& vertexBuffer, Buffer& indexBuffer, Buffer& transformBuffer);
-    void createTopLevelAccelerationStructure(Device& device, AccelerationStructure& bottomLevelAS);
+    void createTopLevelAccelerationStructure(Device& device, std::vector<AccelerationStructure*>& bottomLevelAS);
 
     private:
     void createBuffer(Device& device, VkAccelerationStructureBuildSizesInfoKHR buildSizeInfo);
