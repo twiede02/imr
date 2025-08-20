@@ -227,8 +227,15 @@ struct AccelerationStructure {
     VkAccelerationStructureKHR handle() const;
     VkDeviceAddress deviceAddress() const;
 
-    void createBottomLevelAccelerationStructure(Device& device, Buffer& vertexBuffer, Buffer& indexBuffer, Buffer& transformBuffer);
-    void createTopLevelAccelerationStructure(Device& device, std::vector<std::tuple<VkTransformMatrixKHR, AccelerationStructure*>>& bottomLevelAS);
+    struct TriangleGeometry {
+        Buffer& vertices;
+        Buffer& indices;
+        uint32_t prim_count;
+        VkTransformMatrixKHR matrix;
+    };
+
+    void createBottomLevelAccelerationStructure(std::vector<TriangleGeometry>);
+    void createTopLevelAccelerationStructure(std::vector<std::tuple<VkTransformMatrixKHR, AccelerationStructure*>>& bottomLevelAS);
 
 private:
     struct Impl;

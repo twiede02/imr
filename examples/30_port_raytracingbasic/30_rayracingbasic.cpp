@@ -62,7 +62,6 @@ public:
     std::unique_ptr<imr::Buffer> vertexBuffer;
     std::unique_ptr<imr::Buffer> indexBuffer;
     uint32_t indexCount;
-    std::unique_ptr<imr::Buffer> transformBuffer;
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
     std::unique_ptr<imr::Buffer> raygenShaderBindingTable;
     std::unique_ptr<imr::Buffer> missShaderBindingTable;
@@ -139,13 +138,6 @@ public:
 
         prepare();
     }
-    
-    /*  
-        Create a scratch buffer to hold temporary data for a ray tracing acceleration structure
-    */
-    std::unique_ptr<imr::Buffer> createScratchBuffer(VkDeviceSize size) {
-        return std::make_unique<imr::Buffer>(*device, size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-    }
 
     /*
         Set up a storage image that the ray generation shader will be writing to
@@ -166,52 +158,6 @@ public:
         colorImageView.image = storageImage.image->handle();
         VK_CHECK_RESULT(vkCreateImageView(device->device, &colorImageView, nullptr, &storageImage.view));
     }
-
-    /*
-        Create the geometry and prepare for building the bottom level acceleration structure
-    */
-    void prepareGeometry() {
-
-        // Setup vertices for a single triangle
-        struct Vertex {
-            float pos[3];
-        };
-        std::vector<Vertex> vertices = {
-            { {  1.0f,  1.0f, 0.0f } },
-            { { -1.0f,  1.0f, 0.0f } },
-            { {  0.0f, -1.0f, 0.0f } }
-        };
-
-        // Setup indices
-        std::vector<uint32_t> indices = { 0, 1, 2 };
-        indexCount = static_cast<uint32_t>(indices.size());
-
-        // Setup identity transform matrix
-        VkTransformMatrixKHR transformMatrix = {
-            1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f, 0.0f
-        };
-
-        // Create buffers
-        // For the sake of simplicity we won't stage the vertex data to the GPU memory
-        // Vertex buffer
-        vertexBuffer = std::make_unique<imr::Buffer>(*device, vertices.size() * sizeof(Vertex),
-            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            vertices.data());
-        // Index buffer
-        indexBuffer = std::make_unique<imr::Buffer>(*device, indices.size() * sizeof(uint32_t),
-            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            indices.data());
-        // Transform buffer
-        transformBuffer = std::make_unique<imr::Buffer>(*device, sizeof(VkTransformMatrixKHR),
-            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            &transformMatrix);
-    }
-
     /*
         Create the Shader Binding Tables that binds the programs and top-level acceleration structure
 
@@ -559,10 +505,50 @@ public:
         deviceProperties2.pNext = &rayTracingPipelineProperties;
         vkGetPhysicalDeviceProperties2(device->physical_device, &deviceProperties2);
 
+        // Setup vertices for a single triangle
+        struct Vertex {
+            float pos[3];
+        };
+        std::vector<Vertex> vertices = {
+            { {  1.0f, -1.0f, 0.0f } },
+            { { -1.0f, -1.0f, 0.0f } },
+            { {  0.0f,  1.0f, 0.0f } }
+        };
+
+        // Setup indices
+        std::vector<uint32_t> indices = { 0, 1, 2 };
+        indexCount = static_cast<uint32_t>(indices.size());
+
+        // Create buffers
+        // For the sake of simplicity we won't stage the vertex data to the GPU memory
+        // Vertex buffer
+        vertexBuffer = std::make_unique<imr::Buffer>(*device, vertices.size() * sizeof(Vertex),
+            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            vertices.data());
+        // Index buffer
+        indexBuffer = std::make_unique<imr::Buffer>(*device, indices.size() * sizeof(uint32_t),
+            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            indices.data());
+
         // Create the acceleration structures used to render the ray traced scene
-        prepareGeometry();
         bottomLevelAS = std::make_unique<imr::AccelerationStructure>(*device);
-        bottomLevelAS->createBottomLevelAccelerationStructure(*device, *vertexBuffer, *indexBuffer, *transformBuffer);
+
+        std::vector<imr::AccelerationStructure::TriangleGeometry> geometries;
+        for (int i = 0; i < 3; i++) {
+            // Setup identity transform matrix
+            VkTransformMatrixKHR transformMatrix = {
+                1.0f, 0.0f, 0.0f, 0.0f,
+                0.0f, 1.0f, 0.0f, 0.0f,
+                0.0f, 0.0f, 1.0f, i * 5.0f,
+            };
+            geometries.push_back({
+                *vertexBuffer, *indexBuffer, 1, transformMatrix
+            });
+        }
+
+        bottomLevelAS->createBottomLevelAccelerationStructure(geometries);
         topLevelAS = std::make_unique<imr::AccelerationStructure>(*device);
 
         std::vector<std::tuple<VkTransformMatrixKHR, imr::AccelerationStructure*>> instances;
@@ -574,7 +560,7 @@ public:
             };
             instances.emplace_back(transformMatrix, &*bottomLevelAS);
         }
-        topLevelAS->createTopLevelAccelerationStructure(*device, instances);
+        topLevelAS->createTopLevelAccelerationStructure(instances);
 
         createStorageImage();
         createUniformBuffer();
