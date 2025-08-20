@@ -18,7 +18,78 @@ void camera_update(GLFWwindow*, CameraInput* input);
 
 using namespace nasl;
 
-struct Tri { vec3 v0, v1, v2; vec3 color; };
+struct Face { vec3 v0, v1, v2, v3; };
+
+struct Tri { uint32_t i0, i1, i2; };
+
+struct Cube {
+    Face faces[6];
+    Tri tris[6][2];
+};
+
+Cube make_cube() {
+    /*
+     *  +Y
+     *  ^
+     *  |
+     *  |
+     *  D------C.
+     *  |\     |\
+     *  | H----+-G
+     *  | |    | |
+     *  A-+----B | ---> +X
+     *   \|     \|
+     *    E------F
+     *     \
+     *      \
+     *       \
+     *        v +Z
+     *
+     * Adapted from
+     * https://www.asciiart.eu/art-and-design/geometries
+     */
+    vec3 A = { 0, 0, 0 };
+    vec3 B = { 1, 0, 0 };
+    vec3 C = { 1, 1, 0 };
+    vec3 D = { 0, 1, 0 };
+    vec3 E = { 0, 0, 1 };
+    vec3 F = { 1, 0, 1 };
+    vec3 G = { 1, 1, 1 };
+    vec3 H = { 0, 1, 1 };
+
+    int i = 0;
+    Cube cube = {};
+
+    auto add_face = [&](vec3 v0, vec3 v1, vec3 v2, vec3 v3, vec3 color) {
+        cube.faces[i] = { v0, v1, v2, v3 };
+        /*
+         * v0 --- v3
+         *  |   / |
+         *  |  /  |
+         *  | /   |
+         * v1 --- v2
+         */
+        uint32_t bi = i * 4;
+        cube.tris[i][0] = { bi + 0, bi + 1, bi + 3 };
+        cube.tris[i][1] = { bi + 1, bi + 2, bi + 3 };
+        i++;
+    };
+
+    // top face
+    add_face(H, D, C, G, vec3(0, 1, 0));
+    // north face
+    add_face(A, B, C, D, vec3(1, 0, 0));
+    // west face
+    add_face(A, D, H, E, vec3(0, 0, 1));
+    // east face
+    add_face(F, G, C, B, vec3(1, 0, 1));
+    // south face
+    add_face(E, H, G, F, vec3(0, 1, 1));
+    // bottom face
+    add_face(E, F, B, A, vec3(1, 1, 0));
+    assert(i == 6);
+    return cube;
+}
 
 class VulkanExample
 {
@@ -505,15 +576,8 @@ public:
         deviceProperties2.pNext = &rayTracingPipelineProperties;
         vkGetPhysicalDeviceProperties2(device->physical_device, &deviceProperties2);
 
-        // Setup vertices for a single triangle
-        struct Vertex {
-            float pos[3];
-        };
-        std::vector<Vertex> vertices = {
-            { {  1.0f, -1.0f, 0.0f } },
-            { { -1.0f, -1.0f, 0.0f } },
-            { {  0.0f,  1.0f, 0.0f } }
-        };
+        // Setup vertices for a single cube
+        auto cube = make_cube();
 
         // Setup indices
         std::vector<uint32_t> indices = { 0, 1, 2 };
@@ -522,29 +586,29 @@ public:
         // Create buffers
         // For the sake of simplicity we won't stage the vertex data to the GPU memory
         // Vertex buffer
-        vertexBuffer = std::make_unique<imr::Buffer>(*device, vertices.size() * sizeof(Vertex),
+        vertexBuffer = std::make_unique<imr::Buffer>(*device, sizeof(cube.faces),
             VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            vertices.data());
+            &cube.faces);
         // Index buffer
-        indexBuffer = std::make_unique<imr::Buffer>(*device, indices.size() * sizeof(uint32_t),
+        indexBuffer = std::make_unique<imr::Buffer>(*device, sizeof(cube.tris),
             VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            indices.data());
+            &cube.tris);
 
         // Create the acceleration structures used to render the ray traced scene
         bottomLevelAS = std::make_unique<imr::AccelerationStructure>(*device);
 
         std::vector<imr::AccelerationStructure::TriangleGeometry> geometries;
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 6; i++) {
             // Setup identity transform matrix
             VkTransformMatrixKHR transformMatrix = {
                 1.0f, 0.0f, 0.0f, 0.0f,
                 0.0f, 1.0f, 0.0f, 0.0f,
-                0.0f, 0.0f, 1.0f, i * 5.0f,
+                0.0f, 0.0f, 1.0f, 0 * 5.0f,
             };
             geometries.push_back({
-                vertexBuffer->device_address(), indexBuffer->device_address(), 3, 1, transformMatrix
+                vertexBuffer->device_address(), indexBuffer->device_address() + i * sizeof(cube.tris[i]), 24, 2, transformMatrix
             });
         }
 
