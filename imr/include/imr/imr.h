@@ -228,8 +228,9 @@ struct AccelerationStructure {
     VkDeviceAddress deviceAddress() const;
 
     struct TriangleGeometry {
-        Buffer& vertices;
-        Buffer& indices;
+        VkDeviceAddress vertices;
+        VkDeviceAddress indices;
+        size_t vertices_count;
         uint32_t prim_count;
         VkTransformMatrixKHR matrix;
     };

@@ -33,21 +33,18 @@ void AccelerationStructure::createBottomLevelAccelerationStructure(std::vector<A
     std::vector<std::unique_ptr<imr::Buffer>> transform_buffers;
     std::vector<VkAccelerationStructureGeometryKHR> geometries;
     std::vector<uint32_t> geometries_prim_count;
-    for (auto [vertexBuffer, indexBuffer, primCount, transform] : input_geometries) {
-
-        uint32_t indexCount = static_cast<uint32_t>(indexBuffer.size / sizeof(uint32_t));
-
+    for (auto geometry : input_geometries) {
         VkDeviceOrHostAddressConstKHR vertexBufferDeviceAddress{};
         VkDeviceOrHostAddressConstKHR indexBufferDeviceAddress{};
         VkDeviceOrHostAddressConstKHR transformBufferDeviceAddress{};
 
-        vertexBufferDeviceAddress.deviceAddress = vertexBuffer.device_address();
-        indexBufferDeviceAddress.deviceAddress = indexBuffer.device_address();
+        vertexBufferDeviceAddress.deviceAddress = geometry.vertices;
+        indexBufferDeviceAddress.deviceAddress = geometry.indices;
 
         transform_buffers.emplace_back(std::make_unique<imr::Buffer>(_impl->device, sizeof(VkTransformMatrixKHR),
             VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            &transform));
+            &geometry.matrix));
 
         auto& transformBuffer = transform_buffers.back();
         transformBufferDeviceAddress.deviceAddress = transformBuffer->device_address();
@@ -60,7 +57,7 @@ void AccelerationStructure::createBottomLevelAccelerationStructure(std::vector<A
         accelerationStructureGeometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
         accelerationStructureGeometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
         accelerationStructureGeometry.geometry.triangles.vertexData = vertexBufferDeviceAddress;
-        accelerationStructureGeometry.geometry.triangles.maxVertex = indexCount - 1;
+        accelerationStructureGeometry.geometry.triangles.maxVertex = geometry.vertices_count - 1;
         accelerationStructureGeometry.geometry.triangles.vertexStride = sizeof(Vertex);
         accelerationStructureGeometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
         accelerationStructureGeometry.geometry.triangles.indexData = indexBufferDeviceAddress;
@@ -69,7 +66,7 @@ void AccelerationStructure::createBottomLevelAccelerationStructure(std::vector<A
         accelerationStructureGeometry.geometry.triangles.transformData = transformBufferDeviceAddress;
 
         geometries.push_back(accelerationStructureGeometry);
-        geometries_prim_count.push_back(primCount);
+        geometries_prim_count.push_back(geometry.prim_count);
     }
     std::vector<VkAccelerationStructureGeometryKHR*> geometries_ptrs;
     for (auto& geom : geometries) {

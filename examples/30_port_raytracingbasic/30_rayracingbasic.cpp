@@ -544,7 +544,7 @@ public:
                 0.0f, 0.0f, 1.0f, i * 5.0f,
             };
             geometries.push_back({
-                *vertexBuffer, *indexBuffer, 1, transformMatrix
+                vertexBuffer->device_address(), indexBuffer->device_address(), 3, 1, transformMatrix
             });
         }
 
