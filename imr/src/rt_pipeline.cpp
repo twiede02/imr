@@ -5,192 +5,290 @@
 
 namespace imr {
 
-    RayTracingPipeline::RayTracingPipeline(imr::Device& d, std::vector<ShaderEntryPoint*>&& stages) {
-        _impl = std::make_unique<Impl>(d, std::move(stages));
+    RayTracingPipeline::RayTracingPipeline(Device& d, VkPhysicalDeviceRayTracingPipelinePropertiesKHR& p,
+            Swapchain& s, uint16_t w, uint16_t h,
+            AccelerationStructure& t) {
+        _impl = std::make_unique<Impl>(d, p, s, w, h, t);
     }
 
-    RayTracingPipeline::Impl::Impl(imr::Device& device, std::vector<ShaderEntryPoint*>&& stages)
-        : device_(device)
-    {
-        // take ownership of the entry points
-        for (auto* ep : stages) {
-            entry_points.emplace_back(ep);  // transfer ownership (if safe)
-        }
+    RayTracingPipeline::Impl::Impl(imr::Device& device, VkPhysicalDeviceRayTracingPipelinePropertiesKHR& p, 
+            Swapchain& swapchain, uint16_t width, uint16_t height, AccelerationStructure& topLevelAS)
+        : device(device), rayTracingPipelineProperties(p) {
 
-        // Step 1: Create layout (shared from any shader's reflection)
-        layout = std::make_unique<PipelineLayout>(device, *entry_points[0]->_impl->reflected);
+        pipeline = VK_NULL_HANDLE;
 
-        // Step 2: Collect shader stages and groups
-        std::vector<VkPipelineShaderStageCreateInfo> shader_stages;
-        std::vector<VkRayTracingShaderGroupCreateInfoKHR> shader_groups;
+        ubo = std::make_unique<imr::Buffer>(device, sizeof(uniformData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
-        for (size_t i = 0; i < entry_points.size(); ++i) {
-            auto& ep = *entry_points[i];
+        createStorageImage(swapchain, width, height);
+        createRayTracingPipeline();
+        createShaderBindingTable();
+        createDescriptorSets(topLevelAS);
+    }
 
-            VkPipelineShaderStageCreateInfo stage_info{
+    // RayTracingPipeline getters
+
+    Buffer* RayTracingPipeline::ubo() const {
+        return _impl->ubo.get();
+    }
+
+    VkPipeline* RayTracingPipeline::pipeline() const {
+        return &_impl->pipeline;
+    }
+
+    VkPipelineLayout* RayTracingPipeline::layout() const {
+        return &_impl->layout;
+    }
+
+    Buffer* RayTracingPipeline::raygenShaderBindingTable() const {
+        return _impl->raygenShaderBindingTable.get();
+    }
+
+    Buffer* RayTracingPipeline::missShaderBindingTable() const {
+        return _impl->missShaderBindingTable.get();
+    }
+
+    Buffer* RayTracingPipeline::hitShaderBindingTable() const {
+        return _impl->hitShaderBindingTable.get();
+    }
+
+    VkDescriptorSet* RayTracingPipeline::descriptorSet() const {
+        return &_impl->descriptorSet;
+    }
+
+    RayTracingPipeline::StorageImage* RayTracingPipeline::storageImage() const {
+        return &_impl->storageImage;
+    }
+
+    // private functions
+
+    void RayTracingPipeline::Impl::createStorageImage(Swapchain& swapchain, uint16_t width, uint16_t height) {
+        storageImage.image = std::make_unique<imr::Image>(device, VK_IMAGE_TYPE_2D, (VkExtent3D) {width, height, 1}, swapchain.format(), (VkImageUsageFlagBits) (VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT));
+
+        VkImageViewCreateInfo colorImageView = VkImageViewCreateInfo();
+        colorImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        colorImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        colorImageView.format = swapchain.format();
+        colorImageView.subresourceRange = {};
+        colorImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        colorImageView.subresourceRange.baseMipLevel = 0;
+        colorImageView.subresourceRange.levelCount = 1;
+        colorImageView.subresourceRange.baseArrayLayer = 0;
+        colorImageView.subresourceRange.layerCount = 1;
+        colorImageView.image = storageImage.image->handle();
+        vkCreateImageView(device.device, &colorImageView, nullptr, &storageImage.view);
+    }
+
+    void RayTracingPipeline::Impl::createRayTracingPipeline() {
+        auto& vk = device.dispatch;
+
+        VkDescriptorSetLayoutBinding accelerationStructureLayoutBinding{};
+        accelerationStructureLayoutBinding.binding = 0;
+        accelerationStructureLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+        accelerationStructureLayoutBinding.descriptorCount = 1;
+        accelerationStructureLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+
+        VkDescriptorSetLayoutBinding resultImageLayoutBinding{};
+        resultImageLayoutBinding.binding = 1;
+        resultImageLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        resultImageLayoutBinding.descriptorCount = 1;
+        resultImageLayoutBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+
+        VkDescriptorSetLayoutBinding uniformBufferBinding{};
+        uniformBufferBinding.binding = 2;
+        uniformBufferBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uniformBufferBinding.descriptorCount = 1;
+        uniformBufferBinding.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+
+        std::vector<VkDescriptorSetLayoutBinding> bindings({
+                accelerationStructureLayoutBinding,
+                resultImageLayoutBinding,
+                uniformBufferBinding
+                });
+
+        VkDescriptorSetLayoutCreateInfo descriptorSetlayoutCI{};
+        descriptorSetlayoutCI.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        descriptorSetlayoutCI.bindingCount = static_cast<uint32_t>(bindings.size());
+        descriptorSetlayoutCI.pBindings = bindings.data();
+        vkCreateDescriptorSetLayout(device.device, &descriptorSetlayoutCI, nullptr, &descriptorSetLayout);
+
+        VkPipelineLayoutCreateInfo pipelineLayoutCI{};
+        pipelineLayoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutCI.setLayoutCount = 1;
+        pipelineLayoutCI.pSetLayouts = &descriptorSetLayout;
+        vkCreatePipelineLayout(device.device, &pipelineLayoutCI, nullptr, &layout);
+
+        /*
+           Setup ray tracing shader groups
+           */
+        std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+
+        auto loadShader = [&](const char* name, VkShaderStageFlagBits stage) {
+            auto sm = new imr::ShaderModule(device, name);
+            return (VkPipelineShaderStageCreateInfo) {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                    .stage = ep.stage(),
-                    .module = ep._impl->module.vk_shader_module(),
-                    .pName = ep.name().c_str()
+
+                    .stage = stage,
+                    .module = sm->vk_shader_module(),
+                    .pName = "main"
             };
-            shader_stages.push_back(stage_info);
-
-            VkRayTracingShaderGroupCreateInfoKHR group_info{
-                .sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR,
-                    .generalShader = VK_SHADER_UNUSED_KHR,
-                    .closestHitShader = VK_SHADER_UNUSED_KHR,
-                    .anyHitShader = VK_SHADER_UNUSED_KHR,
-                    .intersectionShader = VK_SHADER_UNUSED_KHR
-            };
-
-            switch (ep.stage()) {
-                case VK_SHADER_STAGE_RAYGEN_BIT_KHR:
-                case VK_SHADER_STAGE_MISS_BIT_KHR:
-                    group_info.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-                    group_info.generalShader = static_cast<uint32_t>(shader_stages.size() - 1);
-                    break;
-                case VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR:
-                    group_info.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-                    group_info.closestHitShader = static_cast<uint32_t>(shader_stages.size() - 1);
-                    break;
-                default:
-                    throw std::runtime_error("Unsupported shader stage in RT pipeline");
-            }
-
-            shader_groups.push_back(group_info);
-        }
-
-        // Step 3: Create the pipeline
-        VkRayTracingPipelineCreateInfoKHR pipeline_info{
-            .sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR,
-                .stageCount = static_cast<uint32_t>(shader_stages.size()),
-                .pStages = shader_stages.data(),
-                .groupCount = static_cast<uint32_t>(shader_groups.size()),
-                .pGroups = shader_groups.data(),
-                .maxPipelineRayRecursionDepth = 1,
-                .layout = layout->pipeline_layout,
         };
 
+        // Ray generation group
+        {
+            shaderStages.push_back(loadShader("raygen.rgen.spv", VK_SHADER_STAGE_RAYGEN_BIT_KHR));
+            VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
+            shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+            shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+            shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
+            shaderGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
+            shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+            shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+            shaderGroups.push_back(shaderGroup);
+        }
 
-        auto vkCreateRayTracingPipelinesKHR_fn =
-            (PFN_vkCreateRayTracingPipelinesKHR) vkGetDeviceProcAddr(device.device, "vkCreateRayTracingPipelinesKHR");
+        // Miss group
+        {
+            shaderStages.push_back(loadShader("miss.rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR));
+            VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
+            shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+            shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+            shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
+            shaderGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
+            shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+            shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+            shaderGroups.push_back(shaderGroup);
+        }
 
-        CHECK_VK_THROW(vkCreateRayTracingPipelinesKHR_fn(
-                    device.device, VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline));
+        // Closest hit group
+        {
+            shaderStages.push_back(loadShader("closesthit.rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
+            VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
+            shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
+            shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+            shaderGroup.generalShader = VK_SHADER_UNUSED_KHR;
+            shaderGroup.closestHitShader = static_cast<uint32_t>(shaderStages.size()) - 1;
+            shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+            shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+            shaderGroups.push_back(shaderGroup);
+        }
 
-        // Step 4: SBT setup will come next
-        create_shader_binding_table();
+        /*
+           Create the ray tracing pipeline
+           */
+        VkRayTracingPipelineCreateInfoKHR rayTracingPipelineCI{};
+        rayTracingPipelineCI.sType = VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR;
+        rayTracingPipelineCI.stageCount = static_cast<uint32_t>(shaderStages.size());
+        rayTracingPipelineCI.pStages = shaderStages.data();
+        rayTracingPipelineCI.groupCount = static_cast<uint32_t>(shaderGroups.size());
+        rayTracingPipelineCI.pGroups = shaderGroups.data();
+        rayTracingPipelineCI.maxPipelineRayRecursionDepth = 1;
+        rayTracingPipelineCI.layout = layout;
+        vk.createRayTracingPipelinesKHR(VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayTracingPipelineCI, nullptr, &pipeline);
+
     }
 
-    static inline size_t align_up(size_t v, size_t align) {
-        return (v + align - 1) & ~(align - 1);
+    void RayTracingPipeline::Impl::createShaderBindingTable() {
+        auto& vk = device.dispatch;
+        const uint32_t handleSize = rayTracingPipelineProperties.shaderGroupHandleSize;
+        const uint32_t handleSizeAligned = (rayTracingPipelineProperties.shaderGroupHandleSize + rayTracingPipelineProperties.shaderGroupHandleAlignment-1) & ~(rayTracingPipelineProperties.shaderGroupHandleAlignment - 1);
+        const uint32_t groupCount = static_cast<uint32_t>(shaderGroups.size());
+        const uint32_t sbtSize = groupCount * handleSizeAligned;
+
+        std::vector<uint8_t> shaderHandleStorage(sbtSize);
+        vk.getRayTracingShaderGroupHandlesKHR(pipeline, 0, groupCount, sbtSize, shaderHandleStorage.data());
+
+        const VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+        const VkMemoryPropertyFlags memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        raygenShaderBindingTable = std::make_unique<imr::Buffer>(device, handleSize, bufferUsageFlags, memoryPropertyFlags);
+        missShaderBindingTable = std::make_unique<imr::Buffer>(device, handleSize, bufferUsageFlags, memoryPropertyFlags);
+        hitShaderBindingTable = std::make_unique<imr::Buffer>(device, handleSize, bufferUsageFlags, memoryPropertyFlags);
+
+        // Copy handles
+        raygenShaderBindingTable->uploadDataSync(0, handleSize, shaderHandleStorage.data());
+        missShaderBindingTable->uploadDataSync(0, handleSize, shaderHandleStorage.data() + handleSizeAligned);
+        hitShaderBindingTable->uploadDataSync(0, handleSize, shaderHandleStorage.data() + handleSizeAligned * 2);
+
     }
 
-
-
-    void RayTracingPipeline::Impl::create_shader_binding_table() {
-        // 1) Query ray tracing pipeline properties
-        VkPhysicalDeviceRayTracingPipelinePropertiesKHR rt_props{
-            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR
+    void RayTracingPipeline::Impl::createDescriptorSets(AccelerationStructure& topLevelAS) {
+        std::vector<VkDescriptorPoolSize> poolSizes = {
+            { VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 },
+            { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
+            { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }
         };
-        VkPhysicalDeviceProperties2 props2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
-        props2.pNext = &rt_props;
-        vkGetPhysicalDeviceProperties2(device_.physical_device, &props2);
 
-        uint32_t handle_size = rt_props.shaderGroupHandleSize;
-        uint32_t handle_alignment = rt_props.shaderGroupHandleAlignment;
-        uint32_t base_alignment = rt_props.shaderGroupBaseAlignment;
+        VkDescriptorPoolCreateInfo descriptorPoolCreateInfo{};
+        descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
+        descriptorPoolCreateInfo.maxSets = 1;
+        vkCreateDescriptorPool(device.device, &descriptorPoolCreateInfo, nullptr, &descriptorPool);
 
-        // Align handle size to base alignment
-        auto align_up = [](uint32_t value, uint32_t alignment) -> uint32_t {
-            return (value + alignment - 1) & ~(alignment - 1);
+        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo {};
+        descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        descriptorSetAllocateInfo.descriptorPool = descriptorPool;
+        descriptorSetAllocateInfo.pSetLayouts = &descriptorSetLayout;
+        descriptorSetAllocateInfo.descriptorSetCount = 1;
+        vkAllocateDescriptorSets(device.device, &descriptorSetAllocateInfo, &descriptorSet);
+
+        VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo{};
+        descriptorAccelerationStructureInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+        descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
+        auto lmao = topLevelAS.handle();
+        descriptorAccelerationStructureInfo.pAccelerationStructures = &lmao;
+
+        VkWriteDescriptorSet accelerationStructureWrite{};
+        accelerationStructureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        // The specialized acceleration structure descriptor has to be chained
+        accelerationStructureWrite.pNext = &descriptorAccelerationStructureInfo;
+        accelerationStructureWrite.dstSet = descriptorSet;
+        accelerationStructureWrite.dstBinding = 0;
+        accelerationStructureWrite.descriptorCount = 1;
+        accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+
+        VkDescriptorImageInfo storageImageDescriptor{};
+        storageImageDescriptor.imageView = storageImage.view;
+        storageImageDescriptor.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+        VkWriteDescriptorSet resultImageWrite = {};
+        resultImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        resultImageWrite.dstSet = descriptorSet;
+        resultImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        resultImageWrite.dstBinding = 1;
+        resultImageWrite.pImageInfo = &storageImageDescriptor;
+        resultImageWrite.descriptorCount = 1;
+
+
+        VkDescriptorBufferInfo dbi = {
+            .buffer = ubo->handle,
+            .offset = 0,
+            .range = ubo->size,
         };
-        uint32_t stride = align_up(handle_size, base_alignment);
 
-        // 2) Get group count from pipeline properties
-        // Here, you *should* track the number of groups at pipeline creation.
-        // For now, assume group count = entry_points.size()
-        uint32_t group_count = static_cast<uint32_t>(entry_points.size());
-        if (group_count == 0) {
-            throw std::runtime_error("No shader groups found for SBT");
-        }
+        VkWriteDescriptorSet uniformBufferWrite = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = descriptorSet,
+            .dstBinding = 2,
 
-        // 3) Load vkGetRayTracingShaderGroupHandlesKHR dynamically
-        auto fpGetHandles = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(
-                vkGetDeviceProcAddr(device_.device, "vkGetRayTracingShaderGroupHandlesKHR")
-                );
-        if (!fpGetHandles) {
-            throw std::runtime_error("Failed to load vkGetRayTracingShaderGroupHandlesKHR");
-        }
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .pBufferInfo = &dbi
+        };
 
-        // 4) Allocate storage for all shader group handles
-        std::vector<uint8_t> shader_handle_storage(group_count * handle_size);
+        std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+            accelerationStructureWrite,
+            resultImageWrite,
+            uniformBufferWrite
+        };
+        vkUpdateDescriptorSets(device.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
 
-        VkResult res = fpGetHandles(
-                device_.device,
-                pipeline,
-                0,
-                group_count,
-                static_cast<uint32_t>(shader_handle_storage.size()),
-                shader_handle_storage.data()
-                );
-        if (res != VK_SUCCESS) {
-            throw std::runtime_error("vkGetRayTracingShaderGroupHandlesKHR failed");
-        }
-
-        // 5) Create the SBT buffer
-        size_t sbt_size = stride * group_count;
-
-        VkBufferUsageFlags usage = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR |
-            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-        VkMemoryPropertyFlags mem_flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-
-        sbt_buffer = std::make_unique<Buffer>(
-                device_, sbt_size, usage, mem_flags
-                );
-
-        // 6) Map the SBT buffer memory
-        void* mapped = nullptr;
-        VkResult map_res = vkMapMemory(
-                device_.device,
-                sbt_buffer->memory,
-                sbt_buffer->memory_offset,
-                sbt_buffer->size,
-                0,
-                &mapped
-                );
-        if (map_res != VK_SUCCESS || !mapped) {
-            throw std::runtime_error("Failed to map SBT buffer memory");
-        }
-
-        uint8_t* dst = reinterpret_cast<uint8_t*>(mapped);
-
-        // 7) Copy all group handles consecutively, padding each to stride
-        for (uint32_t i = 0; i < group_count; ++i) {
-            const uint8_t* src = shader_handle_storage.data() + i * handle_size;
-            memcpy(dst + i * stride, src, handle_size);
-            if (stride > handle_size) {
-                memset(dst + i * stride + handle_size, 0, stride - handle_size);
-            }
-        }
-
-        vkUnmapMemory(device_.device, sbt_buffer->memory);
-
-        // 8) Get device address of SBT buffer
-        VkBufferDeviceAddressInfo addr_info{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
-        addr_info.buffer = sbt_buffer->handle;
-        VkDeviceAddress sbt_addr = vkGetBufferDeviceAddress(device_.device, &addr_info);
-
-        // 9) Set up StridedDeviceAddressRegion for whole SBT (fallback: all groups in one region)
-        raygen_region = { sbt_addr, stride, stride * group_count };
-        miss_region = { 0, 0, 0 };    // TODO: fill these properly later
-        hit_region = { 0, 0, 0 };     // TODO: fill these properly later
-        callable_region = { 0, 0, 0 }; // not used for now
     }
 
     RayTracingPipeline::Impl::~Impl() {
-        vkDestroyPipeline(device_.device, pipeline, nullptr);
+        vkDestroyPipeline(device.device, pipeline, nullptr);
     }
+
+    RayTracingPipeline::~RayTracingPipeline() {}
 
 }
 

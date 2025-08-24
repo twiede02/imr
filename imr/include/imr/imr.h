@@ -20,6 +20,9 @@ inline T* tmpPtr(T&& t) { return &t; }
 
 namespace imr {
 
+struct Swapchain;
+struct AccelerationStructure;
+
 struct Context {
     Context(std::function<void(vkb::InstanceBuilder&)>&& instance_custom = [](auto&) {});
     Context(Context&) = delete;
@@ -153,22 +156,44 @@ struct ComputePipeline {
 };
 
 struct RayTracingPipeline {
-    RayTracingPipeline(imr::Device& d, std::vector<ShaderEntryPoint*>&& stages);
+    RayTracingPipeline(imr::Device&, VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rayTracingPipelineProperties,
+            Swapchain& swapchain, uint16_t width, uint16_t height,
+            AccelerationStructure& topLevelAS);
 
     RayTracingPipeline(const RayTracingPipeline&) = delete;
     ~RayTracingPipeline();
 
-    VkPipeline pipeline() const;
-    VkPipelineLayout layout() const;
-    VkDescriptorSetLayout set_layout(unsigned index) const;
+    // column-major
+    struct Mat4 {
+        float data[16];
+    };
 
-    DescriptorBindHelper* create_bind_helper();
+    // struct for passing matrices through ubo
+    struct UniformData {
+        Mat4 viewInverse;
+        Mat4 projInverse;
+    } uniformData;
 
-    // SBT management:
-    void create_shader_binding_table();
-    VkStridedDeviceAddressRegionKHR get_raygen_region() const;
-    VkStridedDeviceAddressRegionKHR get_miss_region() const;
-    VkStridedDeviceAddressRegionKHR get_hit_region() const;
+    struct StorageImage {
+        std::unique_ptr<Image> image;
+        VkImageView view;
+    };
+
+    StorageImage* storageImage() const;
+
+    VkPipeline* pipeline() const;
+    VkPipelineLayout* layout() const;
+
+    Buffer* raygenShaderBindingTable() const;
+    Buffer* missShaderBindingTable() const;
+    Buffer* hitShaderBindingTable() const;
+    VkDescriptorSet* descriptorSet() const;
+    Buffer* ubo() const;
+
+    // not needed in example, so not exposed for now
+    // std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
+    // VkDescriptorPool* descriptorPool() const;
+    // VkDescriptorSetLayout* descriptorSetLayout() const;
 
     struct Impl;
     std::unique_ptr<Impl> _impl;
