@@ -67,6 +67,21 @@
         "__verbose_abort": "cpp",
         "execution": "cpp",
         "ios": "cpp",
-        "locale": "cpp"
+        "locale": "cpp",
+        "chrono": "cpp",
+        "codecvt": "cpp",
+        "deque": "cpp",
+        "expected": "cpp",
+        "numeric": "cpp",
+        "iomanip": "cpp",
+        "iostream": "cpp",
+        "istream": "cpp",
+        "queue": "cpp",
+        "ranges": "cpp",
+        "semaphore": "cpp",
+        "shared_mutex": "cpp",
+        "sstream": "cpp",
+        "stack": "cpp",
+        "stop_token": "cpp"
     }
 }
