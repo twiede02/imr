@@ -8,6 +8,8 @@ struct AccelerationStructure::Impl {
     std::unique_ptr<Buffer> buffer;
     VkDeviceAddress deviceAddress;
 
+    ~Impl();
+
     void createAccelerationStructure(VkAccelerationStructureTypeKHR asType, std::vector<VkAccelerationStructureGeometryKHR>& geometries, std::vector<uint32_t> geometry_sizes);
 };
 
@@ -182,6 +184,10 @@ void AccelerationStructure::Impl::createAccelerationStructure(VkAccelerationStru
 }
 
 AccelerationStructure::~AccelerationStructure() {
+}
+
+AccelerationStructure::Impl::~Impl() {
+    device.dispatch.destroyAccelerationStructureKHR(handle, nullptr);
 }
 
 }

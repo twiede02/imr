@@ -45,6 +45,15 @@ ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFl
         auto set = shd_lookup_annotation(def, "DescriptorSet");
         auto binding = shd_lookup_annotation(def, "Binding");
 
+        auto is_as = [&](const Type* type) {
+            if (type->tag == ExtType_TAG) {
+                ExtType payload = type->payload.ext_type;
+                if (strcmp(payload.set, "spirv.core") == 0 && payload.opcode == 5341)
+                    return true;
+            }
+            return false;
+        };
+
         std::optional<VkDescriptorType> desc_type;
         if (def->payload.global_variable.type->tag == ImageType_TAG)
             desc_type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -52,6 +61,8 @@ ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFl
             desc_type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         else if (def->payload.global_variable.type->tag == SamplerType_TAG)
             desc_type = VK_DESCRIPTOR_TYPE_SAMPLER;
+        else if (is_as(def->payload.global_variable.type))
+            desc_type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
         else {
             switch (def->payload.global_variable.address_space) {
                 case AsPushConstant: {

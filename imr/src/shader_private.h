@@ -68,37 +68,28 @@ struct ComputePipeline::Impl {
 
 struct RayTracingPipeline::Impl {
     Device& device;
-    VkPipelineLayout layout;
-    VkPipeline pipeline;
+    VkPipeline pipeline = VK_NULL_HANDLE;
+
+    std::unique_ptr<PipelineLayout> layout;
+    ReflectedLayout final_layout;
 
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR rayTracingPipelineProperties {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR,
     };
+
+    std::vector<std::unique_ptr<imr::ShaderModule>> shader_modules;
+    std::vector<std::unique_ptr<imr::ShaderEntryPoint>> entry_pts;
+    std::unique_ptr<ReflectedLayout> reflected;
 
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
     std::unique_ptr<Buffer> raygenShaderBindingTable;
     std::unique_ptr<Buffer> missShaderBindingTable;
     std::unique_ptr<Buffer> hitShaderBindingTable;
 
-    VkDescriptorPool descriptorPool{ VK_NULL_HANDLE };
-    VkDescriptorSet descriptorSet;
-    VkDescriptorSetLayout descriptorSetLayout;
-    
-    // Uniform buffer used to pass matrices to the ray tracing ray generation shader
-    std::unique_ptr<imr::Buffer> ubo;
-
-    StorageImage storageImage;
-    uint16_t imageWidth;
-    uint16_t imageHeight;
-
-    void createStorageImage(Swapchain& swapchain, uint16_t width, uint16_t height);
     void createRayTracingPipeline();
     void createShaderBindingTable();
-    void createDescriptorSets(AccelerationStructure& topLevelAS);
 
-    Impl(Device&,
-            Swapchain& swapchain, uint16_t width, uint16_t height,
-            AccelerationStructure& topLevelAS);
+    Impl(Device&);
 
     ~Impl();
 };

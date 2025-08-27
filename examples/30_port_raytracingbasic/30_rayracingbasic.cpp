@@ -147,6 +147,9 @@ public:
         mat4 projInverse;
     } uniformData;
 
+    std::unique_ptr<imr::Buffer> ubo;
+    std::unique_ptr<imr::Image> storage_image;
+
     VulkanExample() {
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -189,20 +192,19 @@ public:
         swapchain = std::make_unique<imr::Swapchain>(*device, window);
         imr::FpsCounter fps_counter;
 
+        ubo = std::make_unique<imr::Buffer>(*device, sizeof(uniformData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+        storage_image = std::make_unique<imr::Image>(*device, VK_IMAGE_TYPE_2D, (VkExtent3D) {width, height, 1}, swapchain->format(), (VkImageUsageFlagBits) (VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT));
+
         prepare();
     }
 
     void draw(imr::Swapchain::SimplifiedRenderContext& context) {
-        auto& vk = device->dispatch;
+        auto& device = *this->device;
+        auto& vk = device.dispatch;
 
         auto& image = context.image();
         auto cmdbuf = context.cmdbuf();
 
-        VkCommandBufferBeginInfo cmdBufInfo {};
-        cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-        VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-        
         /*
             Setup the buffer regions pointing to the shaders in our shader binding table
         */
@@ -230,7 +232,16 @@ public:
             Dispatch the ray tracing commands
         */
         vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, *imr_pipeline->pipeline());
-        vkCmdBindDescriptorSets(cmdbuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, *imr_pipeline->layout(), 0, 1, imr_pipeline->descriptorSet(), 0, 0);
+
+        auto bind_helper = imr_pipeline->create_bind_helper();
+        bind_helper->set_acceleration_structure(0, 0, *topLevelAS);
+        bind_helper->set_storage_image(0, 1, *storage_image);
+        bind_helper->set_uniform_buffer(0, 2, *ubo);
+        bind_helper->commit(cmdbuf);
+
+        context.addCleanupAction([=, &device]() {
+            delete bind_helper;
+        });
 
         auto setImageLayout = [&](imr::Image& image, VkImageLayout new_layout, VkImageLayout old_layout = VK_IMAGE_LAYOUT_UNDEFINED) {
             vkCmdPipelineBarrier2(cmdbuf, tmpPtr((VkDependencyInfo) {
@@ -251,12 +262,10 @@ public:
             }));
         };
 
-
         // Transition ray tracing output image back to general layout
         setImageLayout(
-            *imr_pipeline->storageImage()->image,
-            VK_IMAGE_LAYOUT_GENERAL,
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+            *storage_image,
+            VK_IMAGE_LAYOUT_GENERAL);
 
         vk.cmdTraceRaysKHR(
             cmdbuf,
@@ -276,7 +285,7 @@ public:
         setImageLayout(context.image(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
         // Prepare ray tracing output image as transfer source
-        setImageLayout(*imr_pipeline->storageImage()->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
+        setImageLayout(*storage_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
 
         VkImageCopy copyRegion{};
         copyRegion.srcSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
@@ -284,7 +293,7 @@ public:
         copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
         copyRegion.dstOffset = { 0, 0, 0 };
         copyRegion.extent = { width, height, 1 };
-        vkCmdCopyImage(cmdbuf, imr_pipeline->storageImage()->image->handle(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image.handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+        vkCmdCopyImage(cmdbuf, storage_image->handle(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image.handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
         // Transition swap chain image back for presentation
         setImageLayout(
@@ -296,7 +305,7 @@ public:
     void updateUniformBuffers() {
         uniformData.projInverse = invert_mat4(camera_get_proj_mat4(&camera, width, height));
         uniformData.viewInverse = invert_mat4(camera_get_pure_view_mat4(&camera));
-        imr_pipeline->ubo()->uploadDataSync(0, sizeof(uniformData), &uniformData);
+        ubo->uploadDataSync(0, sizeof(uniformData), &uniformData);
     }
 
     void prepare() {
@@ -350,7 +359,7 @@ public:
         }
         topLevelAS->createTopLevelAccelerationStructure(instances);
 
-        imr_pipeline = std::make_unique<imr::RayTracingPipeline>(*device, *swapchain, width, height, *topLevelAS);
+        imr_pipeline = std::make_unique<imr::RayTracingPipeline>(*device);
 
         // imr_pipeline->createStorageImage(*swapchain, width, height);
         // imr_pipeline->createRayTracingPipeline();
