@@ -71,7 +71,9 @@ struct RayTracingPipeline::Impl {
     VkPipelineLayout layout;
     VkPipeline pipeline;
 
-    VkPhysicalDeviceRayTracingPipelinePropertiesKHR rayTracingPipelineProperties{};
+    VkPhysicalDeviceRayTracingPipelinePropertiesKHR rayTracingPipelineProperties {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR,
+    };
 
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
     std::unique_ptr<Buffer> raygenShaderBindingTable;
@@ -94,7 +96,7 @@ struct RayTracingPipeline::Impl {
     void createShaderBindingTable();
     void createDescriptorSets(AccelerationStructure& topLevelAS);
 
-    Impl(Device&, VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rayTracingPipelineProperties,
+    Impl(Device&,
             Swapchain& swapchain, uint16_t width, uint16_t height,
             AccelerationStructure& topLevelAS);
 

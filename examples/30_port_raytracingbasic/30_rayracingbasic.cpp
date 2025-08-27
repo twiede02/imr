@@ -300,13 +300,6 @@ public:
     }
 
     void prepare() {
-        // Get ray tracing pipeline properties, which will be used later on in the sample
-        rayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
-        VkPhysicalDeviceProperties2 deviceProperties2{};
-        deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-        deviceProperties2.pNext = &rayTracingPipelineProperties;
-        vkGetPhysicalDeviceProperties2(device->physical_device, &deviceProperties2);
-
         // Setup vertices for a single cube
         auto cube = make_cube();
 
@@ -357,7 +350,7 @@ public:
         }
         topLevelAS->createTopLevelAccelerationStructure(instances);
 
-        imr_pipeline = std::make_unique<imr::RayTracingPipeline>(*device, rayTracingPipelineProperties, *swapchain, width, height, *topLevelAS);
+        imr_pipeline = std::make_unique<imr::RayTracingPipeline>(*device, *swapchain, width, height, *topLevelAS);
 
         // imr_pipeline->createStorageImage(*swapchain, width, height);
         // imr_pipeline->createRayTracingPipeline();

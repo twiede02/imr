@@ -5,15 +5,20 @@
 
 namespace imr {
 
-    RayTracingPipeline::RayTracingPipeline(Device& d, VkPhysicalDeviceRayTracingPipelinePropertiesKHR& p,
+    RayTracingPipeline::RayTracingPipeline(Device& d,
             Swapchain& s, uint16_t w, uint16_t h,
             AccelerationStructure& t) {
-        _impl = std::make_unique<Impl>(d, p, s, w, h, t);
+        _impl = std::make_unique<Impl>(d, s, w, h, t);
     }
 
-    RayTracingPipeline::Impl::Impl(imr::Device& device, VkPhysicalDeviceRayTracingPipelinePropertiesKHR& p, 
-            Swapchain& swapchain, uint16_t width, uint16_t height, AccelerationStructure& topLevelAS)
-        : device(device), rayTracingPipelineProperties(p) {
+    RayTracingPipeline::Impl::Impl(imr::Device& device, Swapchain& swapchain, uint16_t width, uint16_t height, AccelerationStructure& topLevelAS)
+        : device(device) {
+
+        VkPhysicalDeviceProperties2 dont_care {
+            .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+            .pNext = &rayTracingPipelineProperties,
+        };
+        vkGetPhysicalDeviceProperties2(device.physical_device, &dont_care);
 
         pipeline = VK_NULL_HANDLE;
 

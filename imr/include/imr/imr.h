@@ -156,7 +156,7 @@ struct ComputePipeline {
 };
 
 struct RayTracingPipeline {
-    RayTracingPipeline(imr::Device&, VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rayTracingPipelineProperties,
+    RayTracingPipeline(imr::Device&,
             Swapchain& swapchain, uint16_t width, uint16_t height,
             AccelerationStructure& topLevelAS);
 
