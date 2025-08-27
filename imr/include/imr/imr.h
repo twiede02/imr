@@ -135,6 +135,8 @@ struct DescriptorBindHelper {
     ~DescriptorBindHelper();
 
     void set_storage_image(uint32_t set, uint32_t binding, Image& image, std::optional<VkImageSubresourceRange> = std::nullopt, std::optional<VkImageViewType> = std::nullopt);
+    void set_acceleration_structure(uint32_t set, uint32_t binding, imr::AccelerationStructure&);
+    void set_uniform_buffer(uint32_t set, uint32_t binding, imr::Buffer&, uint64_t offset = 0);
     void commit(VkCommandBuffer);
 
     std::unique_ptr<Impl> _impl;
@@ -156,30 +158,10 @@ struct ComputePipeline {
 };
 
 struct RayTracingPipeline {
-    RayTracingPipeline(imr::Device&, VkPhysicalDeviceRayTracingPipelinePropertiesKHR& rayTracingPipelineProperties,
-            Swapchain& swapchain, uint16_t width, uint16_t height,
-            AccelerationStructure& topLevelAS);
+    RayTracingPipeline(imr::Device&);
 
     RayTracingPipeline(const RayTracingPipeline&) = delete;
     ~RayTracingPipeline();
-
-    // column-major
-    struct Mat4 {
-        float data[16];
-    };
-
-    // struct for passing matrices through ubo
-    struct UniformData {
-        Mat4 viewInverse;
-        Mat4 projInverse;
-    } uniformData;
-
-    struct StorageImage {
-        std::unique_ptr<Image> image;
-        VkImageView view;
-    };
-
-    StorageImage* storageImage() const;
 
     VkPipeline* pipeline() const;
     VkPipelineLayout* layout() const;
@@ -187,8 +169,8 @@ struct RayTracingPipeline {
     Buffer* raygenShaderBindingTable() const;
     Buffer* missShaderBindingTable() const;
     Buffer* hitShaderBindingTable() const;
-    VkDescriptorSet* descriptorSet() const;
-    Buffer* ubo() const;
+
+    DescriptorBindHelper* create_bind_helper();
 
     // not needed in example, so not exposed for now
     // std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
