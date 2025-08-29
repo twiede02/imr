@@ -153,7 +153,7 @@ public:
     VulkanExample() {
         glfwInit();
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        window = glfwCreateWindow(1024, 1024, "Example", nullptr, nullptr);
+        window = glfwCreateWindow(width, height, "Example", nullptr, nullptr);
 
         //glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
         //  if (key == GLFW_KEY_R && (mods & GLFW_MOD_CONTROL))
@@ -273,8 +273,8 @@ public:
             &missShaderSbtEntry,
             &hitShaderSbtEntry,
             &callableShaderSbtEntry,
-            width,
-            height,
+            storage_image->size().width,
+            storage_image->size().height,
             1);
 
         /*
@@ -292,7 +292,7 @@ public:
         copyRegion.srcOffset = { 0, 0, 0 };
         copyRegion.dstSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
         copyRegion.dstOffset = { 0, 0, 0 };
-        copyRegion.extent = { width, height, 1 };
+        copyRegion.extent = { storage_image->size().width, storage_image->size().height, 1 };
         vkCmdCopyImage(cmdbuf, storage_image->handle(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image.handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
         // Transition swap chain image back for presentation
@@ -360,14 +360,9 @@ public:
         topLevelAS->createTopLevelAccelerationStructure(instances);
 
         imr_pipeline = std::make_unique<imr::RayTracingPipeline>(*device);
-
-        // imr_pipeline->createStorageImage(*swapchain, width, height);
-        // imr_pipeline->createRayTracingPipeline();
-        // imr_pipeline->createShaderBindingTable();
-        // imr_pipeline->createDescriptorSets(*topLevelAS);
     }
 
-    void have() {
+    void run() {
         imr::FpsCounter fps_counter;
 
         auto prev_frame = imr_get_time_nano();
@@ -382,6 +377,32 @@ public:
             swapchain->renderFrameSimplified([&](imr::Swapchain::SimplifiedRenderContext& context) {
                 camera_update(window, &camera_input);
                 camera_move_freelook(&camera, &camera_input, &camera_state, delta);
+
+                if (!storage_image || storage_image->size().width != context.image().size().width || 
+                        storage_image->size().height != context.image().size().height) {
+
+                VkImageUsageFlagBits imageFlags = static_cast<VkImageUsageFlagBits>(VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT);
+
+                storage_image = std::make_unique<imr::Image>(*device, VK_IMAGE_TYPE_2D, context.image().size(), swapchain->format(), imageFlags);
+
+                auto cmdbuf = context.cmdbuf();
+                device->dispatch.cmdPipelineBarrier2KHR(cmdbuf, tmpPtr((VkDependencyInfo) {
+                            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                            .dependencyFlags = 0,
+                            .imageMemoryBarrierCount = 1,
+                            .pImageMemoryBarriers = tmpPtr((VkImageMemoryBarrier2) {
+                                    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+                                    .srcStageMask = 0,
+                                    .srcAccessMask = 0,
+                                    .dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                                    .dstAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT,
+                                    .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                                    .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                                    .image = storage_image->handle(),
+                                    .subresourceRange = storage_image->whole_image_subresource_range()
+                                    })
+                            }));
+                }
 
                 draw(context);
                 
@@ -398,7 +419,7 @@ public:
 };
 
 int main() {
-    VulkanExample sex{};
-    sex.have();
+    VulkanExample rtPipeline{};
+    rtPipeline.run();
     return 0;
 }
