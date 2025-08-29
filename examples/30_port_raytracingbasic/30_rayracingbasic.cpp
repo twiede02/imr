@@ -303,7 +303,7 @@ public:
     }
 
     void updateUniformBuffers() {
-        uniformData.projInverse = invert_mat4(camera_get_proj_mat4(&camera, width, height));
+        uniformData.projInverse = invert_mat4(camera_get_proj_mat4(&camera, storage_image->size().width, storage_image->size().height));
         uniformData.viewInverse = invert_mat4(camera_get_pure_view_mat4(&camera));
         ubo->uploadDataSync(0, sizeof(uniformData), &uniformData);
     }
