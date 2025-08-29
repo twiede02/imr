@@ -357,6 +357,7 @@ public:
             };
             instances.emplace_back(transformMatrix, &*bottomLevelAS);
         }
+
         topLevelAS->createTopLevelAccelerationStructure(instances);
 
         imr_pipeline = std::make_unique<imr::RayTracingPipeline>(*device);

@@ -125,7 +125,7 @@ void AccelerationStructure::Impl::createAccelerationStructure(VkAccelerationStru
     VkAccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo{};
     accelerationStructureBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
     accelerationStructureBuildGeometryInfo.type = asType;
-    accelerationStructureBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+    accelerationStructureBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
     // TODO
     accelerationStructureBuildGeometryInfo.geometryCount = geometries.size();
     accelerationStructureBuildGeometryInfo.pGeometries = geometries.data();
