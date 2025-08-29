@@ -26,12 +26,12 @@ namespace imr {
 
     // RayTracingPipeline getters
 
-    VkPipeline* RayTracingPipeline::pipeline() const {
-        return &_impl->pipeline;
+    VkPipeline RayTracingPipeline::pipeline() const {
+        return _impl->pipeline;
     }
 
-    VkPipelineLayout* RayTracingPipeline::layout() const {
-        return &_impl->layout->pipeline_layout;
+    VkPipelineLayout RayTracingPipeline::layout() const {
+        return _impl->layout->pipeline_layout;
     }
 
     Buffer* RayTracingPipeline::raygenShaderBindingTable() const {

@@ -163,8 +163,8 @@ struct RayTracingPipeline {
     RayTracingPipeline(const RayTracingPipeline&) = delete;
     ~RayTracingPipeline();
 
-    VkPipeline* pipeline() const;
-    VkPipelineLayout* layout() const;
+    VkPipeline pipeline() const;
+    VkPipelineLayout layout() const;
 
     Buffer* raygenShaderBindingTable() const;
     Buffer* missShaderBindingTable() const;

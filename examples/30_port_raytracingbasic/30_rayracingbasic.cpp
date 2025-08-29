@@ -231,7 +231,7 @@ public:
         /*
             Dispatch the ray tracing commands
         */
-        vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, *imr_pipeline->pipeline());
+        vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, imr_pipeline->pipeline());
 
         auto bind_helper = imr_pipeline->create_bind_helper();
         bind_helper->set_acceleration_structure(0, 0, *topLevelAS);
