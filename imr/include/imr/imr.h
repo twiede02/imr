@@ -170,12 +170,14 @@ struct RayTracingPipeline {
     Buffer* missShaderBindingTable() const;
     Buffer* hitShaderBindingTable() const;
 
-    DescriptorBindHelper* create_bind_helper();
+        uint32_t getHandleSizeAligned() const;
 
-    // not needed in example, so not exposed for now
-    // std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
-    // VkDescriptorPool* descriptorPool() const;
-    // VkDescriptorSetLayout* descriptorSetLayout() const;
+        DescriptorBindHelper *create_bind_helper();
+
+        // not needed in example, so not exposed for now
+        // std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
+        // VkDescriptorPool* descriptorPool() const;
+        // VkDescriptorSetLayout* descriptorSetLayout() const;
 
     struct Impl;
     std::unique_ptr<Impl> _impl;

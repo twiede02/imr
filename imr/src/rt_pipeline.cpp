@@ -26,7 +26,13 @@ namespace imr {
 
     // RayTracingPipeline getters
 
-    VkPipeline RayTracingPipeline::pipeline() const {
+    uint32_t RayTracingPipeline::getHandleSizeAligned() const
+    {
+        return (_impl->rayTracingPipelineProperties.shaderGroupHandleSize + _impl->rayTracingPipelineProperties.shaderGroupHandleAlignment - 1) & ~(_impl->rayTracingPipelineProperties.shaderGroupHandleAlignment - 1);
+    }
+
+    VkPipeline RayTracingPipeline::pipeline() const
+    {
         return _impl->pipeline;
     }
 
