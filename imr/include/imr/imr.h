@@ -158,7 +158,23 @@ struct ComputePipeline {
 };
 
 struct RayTracingPipeline {
-    RayTracingPipeline(imr::Device&);
+    enum ShaderType {
+        raygen,
+        miss,
+        closestHit,
+        anyHit,
+        intersection,
+        callable,
+    };
+
+    struct RT_Shader {
+        ShaderType type;
+        std::string filename;
+        std::string entrypoint_name = "main";
+    };
+
+    // needs at least a raygen, miss, closest hit shader (in that order), then optionally callable
+    RayTracingPipeline(imr::Device&, std::vector<RT_Shader>);
 
     RayTracingPipeline(const RayTracingPipeline&) = delete;
     ~RayTracingPipeline();
@@ -166,18 +182,11 @@ struct RayTracingPipeline {
     VkPipeline pipeline() const;
     VkPipelineLayout layout() const;
 
-    Buffer* raygenShaderBindingTable() const;
-    Buffer* missShaderBindingTable() const;
-    Buffer* hitShaderBindingTable() const;
+    uint32_t getHandleSizeAligned() const;
 
-        uint32_t getHandleSizeAligned() const;
+    DescriptorBindHelper* create_bind_helper();
 
-        DescriptorBindHelper *create_bind_helper();
-
-        // not needed in example, so not exposed for now
-        // std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
-        // VkDescriptorPool* descriptorPool() const;
-        // VkDescriptorSetLayout* descriptorSetLayout() const;
+    void traceRays(VkCommandBuffer cmdbuf, uint16_t width, uint16_t height, uint16_t maxRayRecursionDepth = 1);
 
     struct Impl;
     std::unique_ptr<Impl> _impl;

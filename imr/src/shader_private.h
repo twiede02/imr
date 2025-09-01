@@ -82,14 +82,14 @@ struct RayTracingPipeline::Impl {
     std::unique_ptr<ReflectedLayout> reflected;
 
     std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
-    std::unique_ptr<Buffer> raygenShaderBindingTable;
-    std::unique_ptr<Buffer> missShaderBindingTable;
-    std::unique_ptr<Buffer> hitShaderBindingTable;
+    std::vector<RT_Shader> shaders;
+    std::vector<std::unique_ptr<Buffer>> SBT;
 
-    void createRayTracingPipeline();
-    void createShaderBindingTable();
+    void createRayTracingPipeline(std::vector<RT_Shader> shader);
+    void createShaderBindingTable(std::vector<RT_Shader> shader);
+    void traceRays(VkCommandBuffer cmdbuf, uint16_t width, uint16_t height, uint16_t maxRayRecursionDepth);
 
-    Impl(Device&);
+    Impl(Device&, std::vector<RT_Shader>);
 
     ~Impl();
 };

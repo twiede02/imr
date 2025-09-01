@@ -125,7 +125,7 @@ public:
     std::unique_ptr<imr::AccelerationStructure> bottomLevelAS;
     std::unique_ptr<imr::AccelerationStructure> topLevelAS;
 
-    std::unique_ptr<imr::RayTracingPipeline> imr_pipeline;
+    std::unique_ptr<imr::RayTracingPipeline> pipeline;
 
     std::unique_ptr<imr::Buffer> vertexBuffer;
     std::unique_ptr<imr::Buffer> indexBuffer;
@@ -206,34 +206,11 @@ public:
         auto cmdbuf = context.cmdbuf();
 
         /*
-            Setup the buffer regions pointing to the shaders in our shader binding table
-        */
-
-        const uint32_t handleSizeAligned = (rayTracingPipelineProperties.shaderGroupHandleSize + rayTracingPipelineProperties.shaderGroupHandleAlignment - 1) & ~(rayTracingPipelineProperties.shaderGroupHandleAlignment - 1);
-
-        VkStridedDeviceAddressRegionKHR raygenShaderSbtEntry{};
-        raygenShaderSbtEntry.deviceAddress = imr_pipeline->raygenShaderBindingTable()->device_address();
-        raygenShaderSbtEntry.stride = handleSizeAligned;
-        raygenShaderSbtEntry.size = handleSizeAligned;
-
-        VkStridedDeviceAddressRegionKHR missShaderSbtEntry{};
-        missShaderSbtEntry.deviceAddress = imr_pipeline->missShaderBindingTable()->device_address();
-        missShaderSbtEntry.stride = handleSizeAligned;
-        missShaderSbtEntry.size = handleSizeAligned;
-
-        VkStridedDeviceAddressRegionKHR hitShaderSbtEntry{};
-        hitShaderSbtEntry.deviceAddress = imr_pipeline->hitShaderBindingTable()->device_address();
-        hitShaderSbtEntry.stride = handleSizeAligned;
-        hitShaderSbtEntry.size = handleSizeAligned;
-
-        VkStridedDeviceAddressRegionKHR callableShaderSbtEntry{};
-
-        /*
             Dispatch the ray tracing commands
         */
-        vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, imr_pipeline->pipeline());
+        vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, pipeline->pipeline());
 
-        auto bind_helper = imr_pipeline->create_bind_helper();
+        auto bind_helper = pipeline->create_bind_helper();
         bind_helper->set_acceleration_structure(0, 0, *topLevelAS);
         bind_helper->set_storage_image(0, 1, *storage_image);
         bind_helper->set_uniform_buffer(0, 2, *ubo);
@@ -267,15 +244,7 @@ public:
             *storage_image,
             VK_IMAGE_LAYOUT_GENERAL);
 
-        vk.cmdTraceRaysKHR(
-            cmdbuf,
-            &raygenShaderSbtEntry,
-            &missShaderSbtEntry,
-            &hitShaderSbtEntry,
-            &callableShaderSbtEntry,
-            storage_image->size().width,
-            storage_image->size().height,
-            1);
+        pipeline->traceRays(cmdbuf, storage_image->size().width, storage_image->size().height);
 
         /*
             Copy ray tracing output to swap chain image
@@ -360,7 +329,12 @@ public:
 
         topLevelAS->createTopLevelAccelerationStructure(instances);
 
-        imr_pipeline = std::make_unique<imr::RayTracingPipeline>(*device);
+        std::vector<imr::RayTracingPipeline::RT_Shader> shader;
+        shader.push_back({imr::RayTracingPipeline::ShaderType::raygen, "raygen.rgen"});
+        shader.push_back({imr::RayTracingPipeline::ShaderType::miss, "miss.rmiss"});
+        shader.push_back({imr::RayTracingPipeline::ShaderType::closestHit, "closesthit.rchit"});
+
+        pipeline = std::make_unique<imr::RayTracingPipeline>(*device, shader);
     }
 
     void run() {

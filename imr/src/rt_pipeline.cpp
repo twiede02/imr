@@ -2,26 +2,73 @@
 
 #include "imr/imr.h"
 #include "imr/util.h"
+#include <cstdint>
+#include <memory>
+#include <shady/driver.h>
+#include <vulkan/vulkan_core.h>
 
 namespace imr {
 
-    RayTracingPipeline::RayTracingPipeline(Device& d) {
-        _impl = std::make_unique<Impl>(d);
+    RayTracingPipeline::RayTracingPipeline(Device& d, std::vector<RT_Shader> s) {
+        _impl = std::make_unique<Impl>(d, s);
     }
 
-    RayTracingPipeline::Impl::Impl(imr::Device& device)
-        : device(device) {
+    RayTracingPipeline::Impl::Impl(imr::Device& device, std::vector<RT_Shader> s)
+        : device(device), shaders(s) {
 
-        VkPhysicalDeviceProperties2 dont_care {
+        VkPhysicalDeviceProperties2 physicalDeviceProperties2 {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
             .pNext = &rayTracingPipelineProperties,
         };
-        vkGetPhysicalDeviceProperties2(device.physical_device, &dont_care);
+        vkGetPhysicalDeviceProperties2(device.physical_device, &physicalDeviceProperties2);
 
-        pipeline = VK_NULL_HANDLE;
+        createRayTracingPipeline(s);
+        createShaderBindingTable(s);
+    }
 
-        createRayTracingPipeline();
-        createShaderBindingTable();
+    void RayTracingPipeline::traceRays(VkCommandBuffer c, uint16_t w, uint16_t h, uint16_t d) {
+        _impl->traceRays(c, w, h, d);
+    }
+
+    void RayTracingPipeline::Impl::traceRays(VkCommandBuffer cmdbuf, uint16_t width, uint16_t height, uint16_t maxRayRecursionDepth) {
+
+        assert(SBT.size() >= 3);
+        auto& vk = device.dispatch;
+
+        const uint32_t handleSizeAligned = (rayTracingPipelineProperties.shaderGroupHandleSize + rayTracingPipelineProperties.shaderGroupHandleAlignment - 1) & ~(rayTracingPipelineProperties.shaderGroupHandleAlignment - 1);
+
+        VkStridedDeviceAddressRegionKHR raygenShaderSbtEntry{};
+        raygenShaderSbtEntry.deviceAddress = SBT[0]->device_address();
+        raygenShaderSbtEntry.stride = handleSizeAligned;
+        raygenShaderSbtEntry.size = handleSizeAligned;
+
+        VkStridedDeviceAddressRegionKHR missShaderSbtEntry{};
+        missShaderSbtEntry.deviceAddress = SBT[1]->device_address();
+        missShaderSbtEntry.stride = handleSizeAligned;
+        missShaderSbtEntry.size = handleSizeAligned;
+
+        VkStridedDeviceAddressRegionKHR hitShaderSbtEntry{};
+        hitShaderSbtEntry.deviceAddress = SBT[2]->device_address();
+        hitShaderSbtEntry.stride = handleSizeAligned;
+        hitShaderSbtEntry.size = handleSizeAligned;
+
+        VkStridedDeviceAddressRegionKHR callableShaderSbtEntry{};
+        if (SBT.size() > 3) {
+            callableShaderSbtEntry.deviceAddress = SBT[3]->device_address();
+            callableShaderSbtEntry.stride = handleSizeAligned;
+            callableShaderSbtEntry.size = handleSizeAligned;
+        }
+
+        vk.cmdTraceRaysKHR(
+            cmdbuf,
+            &raygenShaderSbtEntry,
+            &missShaderSbtEntry,
+            &hitShaderSbtEntry,
+            &callableShaderSbtEntry,
+            width,
+            height,
+            maxRayRecursionDepth);
+
     }
 
     // RayTracingPipeline getters
@@ -40,21 +87,9 @@ namespace imr {
         return _impl->layout->pipeline_layout;
     }
 
-    Buffer* RayTracingPipeline::raygenShaderBindingTable() const {
-        return _impl->raygenShaderBindingTable.get();
-    }
-
-    Buffer* RayTracingPipeline::missShaderBindingTable() const {
-        return _impl->missShaderBindingTable.get();
-    }
-
-    Buffer* RayTracingPipeline::hitShaderBindingTable() const {
-        return _impl->hitShaderBindingTable.get();
-    }
-
     // private functions
-
-    void RayTracingPipeline::Impl::createRayTracingPipeline() {
+   
+    void RayTracingPipeline::Impl::createRayTracingPipeline(std::vector<RT_Shader> shader) {
         auto& vk = device.dispatch;
 
         /*
@@ -63,9 +98,9 @@ namespace imr {
         std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
         std::optional<ReflectedLayout> merged_layout;
 
-        auto loadShader = [&](const char* name, VkShaderStageFlagBits stage) {
+        auto loadShader = [&](const char* name, VkShaderStageFlagBits stage, std::string entryPoint) {
             auto& sm = *shader_modules.emplace_back(std::make_unique<imr::ShaderModule>(device, name));
-            auto& ept = *entry_pts.emplace_back(std::make_unique<imr::ShaderEntryPoint>(sm, stage, "main"));
+            auto& ept = *entry_pts.emplace_back(std::make_unique<imr::ShaderEntryPoint>(sm, stage, entryPoint));
             if (!merged_layout)
                 merged_layout = *ept._impl->reflected;
             else
@@ -75,46 +110,41 @@ namespace imr {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                     .stage = stage,
                     .module = sm.vk_shader_module(),
-                    .pName = "main"
+                    .pName = entryPoint.c_str()
             };
         };
 
-        // Ray generation group
-        {
-            shaderStages.push_back(loadShader("raygen.rgen.spv", VK_SHADER_STAGE_RAYGEN_BIT_KHR));
-            VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
-            shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
-            shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-            shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
-            shaderGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
-            shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
-            shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
-            shaderGroups.push_back(shaderGroup);
-        }
+        auto matchShaderStageCreateInfoBit = [&](ShaderType t) {
+            switch (t) {
+                case raygen:
+                    return VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+                case miss:
+                    return VK_SHADER_STAGE_MISS_BIT_KHR;
+                case closestHit:
+                    return VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+                case anyHit:
+                    return VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
+                case intersection:
+                    return VK_SHADER_STAGE_INTERSECTION_BIT_KHR;
+                case callable:
+                    return VK_SHADER_STAGE_CALLABLE_BIT_KHR;
+                }
+        };
 
-        // Miss group
-        {
-            shaderStages.push_back(loadShader("miss.rmiss.spv", VK_SHADER_STAGE_MISS_BIT_KHR));
-            VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
-            shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
-            shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-            shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
-            shaderGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
-            shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
-            shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
-            shaderGroups.push_back(shaderGroup);
-        }
+        auto isGeneral = [&](ShaderType t) {
+            return t == ShaderType::raygen || t == ShaderType::miss || t == ShaderType::callable;
+        };
 
-        // Closest hit group
-        {
-            shaderStages.push_back(loadShader("closesthit.rchit.spv", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR));
+        for (auto t : shaders) {
+            std::string filename = t.filename + ".spv";
+            shaderStages.push_back(loadShader(filename.c_str(), matchShaderStageCreateInfoBit(t.type), t.entrypoint_name));
             VkRayTracingShaderGroupCreateInfoKHR shaderGroup{};
             shaderGroup.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR;
-            shaderGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-            shaderGroup.generalShader = VK_SHADER_UNUSED_KHR;
-            shaderGroup.closestHitShader = static_cast<uint32_t>(shaderStages.size()) - 1;
-            shaderGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
-            shaderGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+            shaderGroup.type = t.type == ShaderType::closestHit || t.type == ShaderType::closestHit ? VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR : VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+            shaderGroup.generalShader = isGeneral(t.type) ? static_cast<uint32_t>(shaderStages.size()) - 1 : VK_SHADER_UNUSED_KHR;
+            shaderGroup.closestHitShader = t.type == ShaderType::closestHit ? static_cast<uint32_t>(shaderStages.size()) - 1 : VK_SHADER_UNUSED_KHR;
+            shaderGroup.anyHitShader = t.type == ShaderType::anyHit ? static_cast<uint32_t>(shaderStages.size()) - 1 : VK_SHADER_UNUSED_KHR;
+            shaderGroup.intersectionShader = t.type == ShaderType::intersection ? static_cast<uint32_t>(shaderStages.size()) - 1 : VK_SHADER_UNUSED_KHR;
             shaderGroups.push_back(shaderGroup);
         }
 
@@ -137,7 +167,7 @@ namespace imr {
 
     }
 
-    void RayTracingPipeline::Impl::createShaderBindingTable() {
+    void RayTracingPipeline::Impl::createShaderBindingTable(std::vector<RT_Shader> shader) {
         auto& vk = device.dispatch;
         const uint32_t handleSize = rayTracingPipelineProperties.shaderGroupHandleSize;
         const uint32_t handleSizeAligned = (rayTracingPipelineProperties.shaderGroupHandleSize + rayTracingPipelineProperties.shaderGroupHandleAlignment-1) & ~(rayTracingPipelineProperties.shaderGroupHandleAlignment - 1);
@@ -149,14 +179,16 @@ namespace imr {
 
         const VkBufferUsageFlags bufferUsageFlags = VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
         const VkMemoryPropertyFlags memoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-        raygenShaderBindingTable = std::make_unique<imr::Buffer>(device, handleSize, bufferUsageFlags, memoryPropertyFlags);
-        missShaderBindingTable = std::make_unique<imr::Buffer>(device, handleSize, bufferUsageFlags, memoryPropertyFlags);
-        hitShaderBindingTable = std::make_unique<imr::Buffer>(device, handleSize, bufferUsageFlags, memoryPropertyFlags);
+
+        for (auto s : shaders) {
+            SBT.push_back(std::make_unique<imr::Buffer>(device, handleSize, bufferUsageFlags, memoryPropertyFlags));
+        }
 
         // Copy handles
-        raygenShaderBindingTable->uploadDataSync(0, handleSize, shaderHandleStorage.data());
-        missShaderBindingTable->uploadDataSync(0, handleSize, shaderHandleStorage.data() + handleSizeAligned);
-        hitShaderBindingTable->uploadDataSync(0, handleSize, shaderHandleStorage.data() + handleSizeAligned * 2);
+        for (int i = 0; i < SBT.size(); i++) {
+            SBT[i]->uploadDataSync(0, handleSize, shaderHandleStorage.data() + handleSizeAligned * i);
+        }
+
     }
 
     RayTracingPipeline::Impl::~Impl() {
