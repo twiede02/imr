@@ -137,6 +137,7 @@ struct DescriptorBindHelper {
     void set_storage_image(uint32_t set, uint32_t binding, Image& image, std::optional<VkImageSubresourceRange> = std::nullopt, std::optional<VkImageViewType> = std::nullopt);
     void set_acceleration_structure(uint32_t set, uint32_t binding, imr::AccelerationStructure&);
     void set_uniform_buffer(uint32_t set, uint32_t binding, imr::Buffer&, uint64_t offset = 0);
+    void set_storage_buffer(uint32_t set, uint32_t binding, imr::Buffer&, uint64_t offset = 0);
     void commit(VkCommandBuffer);
 
     std::unique_ptr<Impl> _impl;

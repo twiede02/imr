@@ -163,6 +163,32 @@ void DescriptorBindHelper::set_uniform_buffer(uint32_t set, uint32_t binding, im
     vkUpdateDescriptorSets(device.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
 }
 
+void DescriptorBindHelper::set_storage_buffer(uint32_t set, uint32_t binding, imr::Buffer& buffer, uint64_t offset) {
+    auto& device = _impl->device;
+    VkDescriptorBufferInfo dbi = {
+        .buffer = buffer.handle,
+        .offset = offset,
+        .range = buffer.size,
+    };
+
+    VkWriteDescriptorSet storageBufferWrite = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = _impl->get_or_create_set(set),
+        .dstBinding = binding,
+
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .pBufferInfo = &dbi
+    };
+
+    std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+        storageBufferWrite
+    };
+
+    vkUpdateDescriptorSets(device.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
+
+}
+
 void DescriptorBindHelper::set_acceleration_structure(uint32_t set, uint32_t binding, imr::AccelerationStructure& as) {
     auto& device = _impl->device;
     VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo{};
