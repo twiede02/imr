@@ -38,23 +38,23 @@ namespace imr {
         VkStridedDeviceAddressRegionKHR raygenShaderSbtEntry{};
         raygenShaderSbtEntry.deviceAddress = raygen_sbt->device_address();
         raygenShaderSbtEntry.stride = handleSizeAligned;
-        raygenShaderSbtEntry.size = handleSizeAligned;
+        raygenShaderSbtEntry.size = raygen_sbt->size;
 
         VkStridedDeviceAddressRegionKHR missShaderSbtEntry{};
         missShaderSbtEntry.deviceAddress = miss_sbt->device_address();
         missShaderSbtEntry.stride = handleSizeAligned;
-        missShaderSbtEntry.size = handleSizeAligned;
+        missShaderSbtEntry.size = miss_sbt->size;
 
         VkStridedDeviceAddressRegionKHR hitShaderSbtEntry{};
         hitShaderSbtEntry.deviceAddress = hit_sbt->device_address();
         hitShaderSbtEntry.stride = handleSizeAligned;
-        hitShaderSbtEntry.size = handleSizeAligned;
+        hitShaderSbtEntry.size = hit_sbt->size;
 
         VkStridedDeviceAddressRegionKHR callableShaderSbtEntry{};
         if (callable_sbt) {
             callableShaderSbtEntry.deviceAddress = callable_sbt->device_address();
             callableShaderSbtEntry.stride = handleSizeAligned;
-            callableShaderSbtEntry.size = handleSizeAligned;
+            callableShaderSbtEntry.size = callable_sbt->size;
         }
 
         vk.cmdTraceRaysKHR(
