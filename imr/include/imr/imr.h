@@ -178,7 +178,7 @@ struct RayTracingPipeline {
 
     DescriptorBindHelper* create_bind_helper();
 
-    void traceRays(VkCommandBuffer cmdbuf, uint16_t width, uint16_t height, uint16_t maxRayRecursionDepth = 1);
+    void traceRays(VkCommandBuffer cmdbuf, uint16_t width, uint16_t height, uint16_t depth = 1);
 
     struct Impl;
     std::unique_ptr<Impl> _impl;

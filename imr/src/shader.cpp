@@ -108,8 +108,8 @@ ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFl
 }
 
 ReflectedLayout::ReflectedLayout(imr::ReflectedLayout& a, imr::ReflectedLayout& b) : push_constants(a.push_constants), set_bindings(a.set_bindings), stages(a.stages | b.stages) {
-    if ((a.stages & b.stages) != 0)
-        throw std::runtime_error("Overlap in stages");
+    //if ((a.stages & b.stages) != 0)
+    //    throw std::runtime_error("Overlap in stages");
     for (auto range_b : b.push_constants) {
         // TODO: we assume no overlap
         push_constants.push_back(range_b);
@@ -126,6 +126,7 @@ ReflectedLayout::ReflectedLayout(imr::ReflectedLayout& a, imr::ReflectedLayout& 
                         if (binding_a.descriptorCount != binding_b.descriptorCount || binding_a.descriptorType != binding_b.descriptorType) {
                             throw std::runtime_error("Incompatible bindings");
                         }
+                        binding_a.stageFlags |= binding_b.stageFlags;
                         merged = true;
                     }
                 }

@@ -30,7 +30,7 @@ namespace imr {
         _impl->traceRays(c, w, h, d);
     }
 
-    void RayTracingPipeline::Impl::traceRays(VkCommandBuffer cmdbuf, uint16_t width, uint16_t height, uint16_t maxRayRecursionDepth) {
+    void RayTracingPipeline::Impl::traceRays(VkCommandBuffer cmdbuf, uint16_t width, uint16_t height, uint16_t depth) {
         auto& vk = device.dispatch;
 
         const uint32_t handleSizeAligned = (rayTracingPipelineProperties.shaderGroupHandleSize + rayTracingPipelineProperties.shaderGroupHandleAlignment - 1) & ~(rayTracingPipelineProperties.shaderGroupHandleAlignment - 1);
@@ -65,7 +65,7 @@ namespace imr {
             &callableShaderSbtEntry,
             width,
             height,
-            maxRayRecursionDepth);
+            depth);
 
     }
 
@@ -179,7 +179,7 @@ namespace imr {
         rayTracingPipelineCI.pStages = shaderStages.data();
         rayTracingPipelineCI.groupCount = static_cast<uint32_t>(shaderGroups.size());
         rayTracingPipelineCI.pGroups = shaderGroups.data();
-        rayTracingPipelineCI.maxPipelineRayRecursionDepth = 1;
+        rayTracingPipelineCI.maxPipelineRayRecursionDepth = 2;
         rayTracingPipelineCI.layout = layout->pipeline_layout;
         vk.createRayTracingPipelinesKHR(VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayTracingPipelineCI, nullptr, &pipeline);
     }
@@ -199,14 +199,16 @@ namespace imr {
 
 
         raygen_sbt = std::make_unique<imr::Buffer>(device, handleSize, bufferUsageFlags, memoryPropertyFlags);
-        hit_sbt = std::make_unique<imr::Buffer>(device, handleSize, bufferUsageFlags, memoryPropertyFlags);
-        miss_sbt = std::make_unique<imr::Buffer>(device, handleSize, bufferUsageFlags, memoryPropertyFlags);
-        callable_sbt = std::make_unique<imr::Buffer>(device, handleSize, bufferUsageFlags, memoryPropertyFlags);
+        hit_sbt = std::make_unique<imr::Buffer>(device, handleSize * hit_shaders.size(), bufferUsageFlags, memoryPropertyFlags);
+        miss_sbt = std::make_unique<imr::Buffer>(device, handleSize * miss_shaders.size(), bufferUsageFlags, memoryPropertyFlags);
+        if (callables.size() > 0)
+            callable_sbt = std::make_unique<imr::Buffer>(device, handleSize * callables.size(), bufferUsageFlags, memoryPropertyFlags);
 
-        raygen_sbt->uploadDataSync(0, handleSize, shaderHandleStorage.data());
-        hit_sbt->uploadDataSync(0, handleSize, shaderHandleStorage.data() + handleSizeAligned);
-        miss_sbt->uploadDataSync(0, handleSize, shaderHandleStorage.data() + handleSizeAligned * (1 + hit_shaders.size()));
-        callable_sbt->uploadDataSync(0, handleSize, shaderHandleStorage.data() + handleSizeAligned * (1 + hit_shaders.size() + miss_shaders.size()));
+        raygen_sbt->uploadDataSync(0, raygen_sbt->size, shaderHandleStorage.data());
+        hit_sbt->uploadDataSync(0, hit_sbt->size, shaderHandleStorage.data() + handleSizeAligned);
+        miss_sbt->uploadDataSync(0, miss_sbt->size, shaderHandleStorage.data() + handleSizeAligned * (1 + hit_shaders.size()));
+        if (callables.size() > 0)
+            callable_sbt->uploadDataSync(0, callable_sbt->size, shaderHandleStorage.data() + handleSizeAligned * (1 + hit_shaders.size() + miss_shaders.size()));
     }
 
     RayTracingPipeline::Impl::~Impl() {
