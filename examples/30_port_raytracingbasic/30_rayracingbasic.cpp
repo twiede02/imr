@@ -329,12 +329,28 @@ public:
 
         topLevelAS->createTopLevelAccelerationStructure(instances);
 
-        std::vector<imr::RayTracingPipeline::RT_Shader> shader;
-        shader.push_back({imr::RayTracingPipeline::ShaderType::raygen, "raygen.rgen"});
-        shader.push_back({imr::RayTracingPipeline::ShaderType::miss, "miss.rmiss"});
-        shader.push_back({imr::RayTracingPipeline::ShaderType::closestHit, "closesthit.rchit"});
+        std::vector<std::unique_ptr<imr::ShaderModule>> shader_modules;
+        std::vector<std::unique_ptr<imr::ShaderEntryPoint>> entry_pts;
 
-        pipeline = std::make_unique<imr::RayTracingPipeline>(*device, shader);
+        auto load_shader = [&](std::string filename, std::string fn, VkShaderStageFlagBits stage) -> imr::ShaderEntryPoint* {
+            imr::ShaderModule& module = *shader_modules.emplace_back(std::make_unique<imr::ShaderModule>(*device, std::move(filename)));
+            imr::ShaderEntryPoint& entry_point = *entry_pts.emplace_back(std::make_unique<imr::ShaderEntryPoint>(module, stage, fn));
+            return &entry_point;
+        };
+
+        auto raygen = load_shader("raygen.rgen.spv", "main", VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+        auto hit = load_shader("closesthit.rchit.spv", "main", VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR);
+        auto miss = load_shader("miss.rmiss.spv", "main", VK_SHADER_STAGE_MISS_BIT_KHR);
+
+        std::vector<imr::RayTracingPipeline::HitShadersTriple> hits;
+        hits.push_back({
+            .closest_hit = hit,
+        });
+
+        std::vector<imr::ShaderEntryPoint*> misses;
+        misses.emplace_back(miss);
+
+        pipeline = std::make_unique<imr::RayTracingPipeline>(*device, raygen, hits, misses);
     }
 
     void run() {

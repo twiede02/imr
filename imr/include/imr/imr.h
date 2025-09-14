@@ -159,23 +159,14 @@ struct ComputePipeline {
 };
 
 struct RayTracingPipeline {
-    enum ShaderType {
-        raygen,
-        miss,
-        closestHit,
-        anyHit,
-        intersection,
-        callable,
+    struct HitShadersTriple {
+        ShaderEntryPoint* closest_hit = nullptr;
+        ShaderEntryPoint* any_hit = nullptr;
+        ShaderEntryPoint* intersection = nullptr;
     };
 
-    struct RT_Shader {
-        ShaderType type;
-        std::string filename;
-        std::string entrypoint_name = "main";
-    };
-
-    // needs at least a raygen, miss, closest hit shader (in that order), then optionally callable
-    RayTracingPipeline(imr::Device&, std::vector<RT_Shader>);
+    // needs a raygen, hit shader groups (at least one), miss shaders (at least one) then optionally callables
+    RayTracingPipeline(imr::Device&, ShaderEntryPoint* raygen, std::vector<HitShadersTriple> hit_shaders, std::vector<ShaderEntryPoint*> miss_shaders, std::vector<ShaderEntryPoint*> callables = {});
 
     RayTracingPipeline(const RayTracingPipeline&) = delete;
     ~RayTracingPipeline();

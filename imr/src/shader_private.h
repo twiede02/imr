@@ -77,19 +77,26 @@ struct RayTracingPipeline::Impl {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR,
     };
 
-    std::vector<std::unique_ptr<imr::ShaderModule>> shader_modules;
-    std::vector<std::unique_ptr<imr::ShaderEntryPoint>> entry_pts;
-    std::unique_ptr<ReflectedLayout> reflected;
+    //std::vector<std::unique_ptr<imr::ShaderModule>> shader_modules;
+    //std::vector<std::unique_ptr<imr::ShaderEntryPoint>> entry_pts;
+    //std::unique_ptr<ReflectedLayout> reflected;
 
-    std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups{};
-    std::vector<RT_Shader> shaders;
-    std::vector<std::unique_ptr<Buffer>> SBT;
+    //ShaderEntryPoint* raygen;
+    //std::vector<HitShadersTriple> hit_shaders;
+    //std::vector<ShaderEntryPoint*> miss_shaders;
+    //std::vector<ShaderEntryPoint*> callables;
+    //std::vector<std::unique_ptr<Buffer>> SBT;
 
-    void createRayTracingPipeline(std::vector<RT_Shader> shader);
-    void createShaderBindingTable(std::vector<RT_Shader> shader);
+    std::unique_ptr<imr::Buffer> raygen_sbt;
+    std::unique_ptr<imr::Buffer> hit_sbt;
+    std::unique_ptr<imr::Buffer> miss_sbt;
+    std::unique_ptr<imr::Buffer> callable_sbt;
+
+    void createRayTracingPipeline(ShaderEntryPoint* raygen, std::vector<HitShadersTriple> hit_shaders, std::vector<ShaderEntryPoint*> miss_shaders, std::vector<ShaderEntryPoint*> callables);
+    void createShaderBindingTable(ShaderEntryPoint* raygen, std::vector<HitShadersTriple> hit_shaders, std::vector<ShaderEntryPoint*> miss_shaders, std::vector<ShaderEntryPoint*> callables);
     void traceRays(VkCommandBuffer cmdbuf, uint16_t width, uint16_t height, uint16_t maxRayRecursionDepth);
 
-    Impl(Device&, std::vector<RT_Shader>);
+    Impl(Device&, ShaderEntryPoint* raygen, std::vector<HitShadersTriple> hit_shaders, std::vector<ShaderEntryPoint*> miss_shaders, std::vector<ShaderEntryPoint*> callables);
 
     ~Impl();
 };
