@@ -326,6 +326,16 @@ VkImageSubresourceRange Image::whole_image_subresource_range() const {
     return range;
 }
 
+VkImageSubresourceLayers Image::whole_image_subresource_layers() const {
+    VkImageSubresourceLayers range = {
+        .aspectMask = static_cast<VkImageAspectFlags>(aspects_from_format(format())),
+        .mipLevel = 0,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+    };
+    return range;
+}
+
 Image::~Image() {
     if (_impl)
         if (_impl->vma_allocation)

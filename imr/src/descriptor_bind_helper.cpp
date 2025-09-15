@@ -134,6 +134,57 @@ void DescriptorBindHelper::set_storage_image(uint32_t set, uint32_t binding, Ima
     });
 }
 
+void DescriptorBindHelper::set_sampler(uint32_t set, uint32_t binding, VkSampler sampler) {
+    assert(!_impl->committed);
+    auto& device = _impl->device;
+
+    vkUpdateDescriptorSets(device.device, 1, tmpPtr<VkWriteDescriptorSet>({
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = _impl->get_or_create_set(set),
+        .dstBinding = binding,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+        .pImageInfo = tmpPtr<VkDescriptorImageInfo>({
+            .sampler = sampler,
+        }),
+    }), 0, nullptr);
+}
+
+void DescriptorBindHelper::set_texture_image(uint32_t set, uint32_t binding, Image& image, std::optional<VkImageSubresourceRange> subresource, std::optional<VkImageViewType> image_view_type) {
+    assert(!_impl->committed);
+    auto& device = _impl->device;
+
+    VkImageViewType final_image_view_type = image_view_type ? *image_view_type : image_type_to_view_type(image.type());
+    VkImageSubresourceRange subresource_range = subresource ? *subresource : image.whole_image_subresource_range();
+
+    VkImageView view;
+    vkCreateImageView(device.device, tmpPtr<VkImageViewCreateInfo>({
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = image.handle(),
+        .viewType = final_image_view_type,
+        .format = image.format(),
+        .subresourceRange = subresource_range,
+    }), nullptr, &view);
+
+    vkUpdateDescriptorSets(device.device, 1, tmpPtr<VkWriteDescriptorSet>({
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = _impl->get_or_create_set(set),
+        .dstBinding = binding,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        .pImageInfo = tmpPtr<VkDescriptorImageInfo>({
+            .sampler = VK_NULL_HANDLE,
+            .imageView = view,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        }),
+    }), 0, nullptr);
+
+    auto deviceHandle = device.device.device;
+    _impl->cleanup.push_back([=]() {
+        vkDestroyImageView(deviceHandle, view, nullptr);
+    });
+}
+
 void DescriptorBindHelper::commit(VkCommandBuffer cmdbuf) {
     assert(!_impl->committed);
     for (unsigned set = 0; set < _impl->nsets; set++) {

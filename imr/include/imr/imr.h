@@ -89,6 +89,7 @@ struct Image {
     ~Image();
 
     VkImageSubresourceRange whole_image_subresource_range() const;
+    VkImageSubresourceLayers whole_image_subresource_layers() const;
 
     struct Impl;
     Image(Impl&&);
@@ -132,6 +133,8 @@ struct DescriptorBindHelper {
     ~DescriptorBindHelper();
 
     void set_storage_image(uint32_t set, uint32_t binding, Image& image, std::optional<VkImageSubresourceRange> = std::nullopt, std::optional<VkImageViewType> = std::nullopt);
+    void set_sampler(uint32_t set, uint32_t binding, VkSampler);
+    void set_texture_image(uint32_t set, uint32_t binding, Image& image, std::optional<VkImageSubresourceRange> = std::nullopt, std::optional<VkImageViewType> = std::nullopt);
     void commit(VkCommandBuffer);
 
     std::unique_ptr<Impl> _impl;
