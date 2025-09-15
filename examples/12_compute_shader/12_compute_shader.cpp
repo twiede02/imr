@@ -33,7 +33,7 @@ int main() {
             // it has to live as long as the frame rendering takes so it _cannot_ be stack-allocated here
             // instead it goes on the heap and we manually delete it
             auto shader_bind_helper = shader.create_bind_helper();
-            shader_bind_helper->set_storage_image(0, 0, image);
+            shader_bind_helper->set_storage_image(0, 0, image.whole_image_view());
             shader_bind_helper->commit(cmdbuf);
 
             // We dispatch invocations in "workgroups", whose size is defined in the compute shader file

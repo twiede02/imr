@@ -90,35 +90,15 @@ DescriptorBindHelper* GraphicsPipeline::create_bind_helper() {
     return new DescriptorBindHelper(std::move(impl));
 }
 
-VkImageViewType image_type_to_view_type(VkImageType type) {
-    switch (type) {
-        case VK_IMAGE_TYPE_1D: return VK_IMAGE_VIEW_TYPE_1D;
-        case VK_IMAGE_TYPE_2D: return VK_IMAGE_VIEW_TYPE_2D;
-        case VK_IMAGE_TYPE_3D: return VK_IMAGE_VIEW_TYPE_3D;
-        default: throw std::runtime_error("Unknown image type");
-    }
-}
-
-void DescriptorBindHelper::set_storage_image(uint32_t set, uint32_t binding, Image& image, std::optional<VkImageSubresourceRange> subresource, std::optional<VkImageViewType> image_view_type) {
+void DescriptorBindHelper::set_storage_image(uint32_t set, uint32_t binding, VkImageView view, uint32_t array_element) {
     assert(!_impl->committed);
     auto& device = _impl->device;
-
-    VkImageViewType final_image_view_type = image_view_type ? *image_view_type : image_type_to_view_type(image.type());
-    VkImageSubresourceRange subresource_range = subresource ? *subresource : image.whole_image_subresource_range();
-
-    VkImageView view;
-    vkCreateImageView(device.device, tmpPtr<VkImageViewCreateInfo>({
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image.handle(),
-        .viewType = final_image_view_type,
-        .format = image.format(),
-        .subresourceRange = subresource_range,
-    }), nullptr, &view);
 
     vkUpdateDescriptorSets(device.device, 1, tmpPtr<VkWriteDescriptorSet>({
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = _impl->get_or_create_set(set),
         .dstBinding = binding,
+        .dstArrayElement = array_element,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
         .pImageInfo = tmpPtr<VkDescriptorImageInfo>({
@@ -127,14 +107,9 @@ void DescriptorBindHelper::set_storage_image(uint32_t set, uint32_t binding, Ima
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
         }),
     }), 0, nullptr);
-
-    auto deviceHandle = device.device.device;
-    _impl->cleanup.push_back([=]() {
-        vkDestroyImageView(deviceHandle, view, nullptr);
-    });
 }
 
-void DescriptorBindHelper::set_sampler(uint32_t set, uint32_t binding, VkSampler sampler) {
+void DescriptorBindHelper::set_sampler(uint32_t set, uint32_t binding, VkSampler sampler, uint32_t array_element) {
     assert(!_impl->committed);
     auto& device = _impl->device;
 
@@ -142,6 +117,7 @@ void DescriptorBindHelper::set_sampler(uint32_t set, uint32_t binding, VkSampler
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = _impl->get_or_create_set(set),
         .dstBinding = binding,
+        .dstArrayElement = array_element,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
         .pImageInfo = tmpPtr<VkDescriptorImageInfo>({
@@ -150,26 +126,15 @@ void DescriptorBindHelper::set_sampler(uint32_t set, uint32_t binding, VkSampler
     }), 0, nullptr);
 }
 
-void DescriptorBindHelper::set_texture_image(uint32_t set, uint32_t binding, Image& image, std::optional<VkImageSubresourceRange> subresource, std::optional<VkImageViewType> image_view_type) {
+void DescriptorBindHelper::set_texture_image(uint32_t set, uint32_t binding, VkImageView view, uint32_t array_element) {
     assert(!_impl->committed);
     auto& device = _impl->device;
-
-    VkImageViewType final_image_view_type = image_view_type ? *image_view_type : image_type_to_view_type(image.type());
-    VkImageSubresourceRange subresource_range = subresource ? *subresource : image.whole_image_subresource_range();
-
-    VkImageView view;
-    vkCreateImageView(device.device, tmpPtr<VkImageViewCreateInfo>({
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image.handle(),
-        .viewType = final_image_view_type,
-        .format = image.format(),
-        .subresourceRange = subresource_range,
-    }), nullptr, &view);
 
     vkUpdateDescriptorSets(device.device, 1, tmpPtr<VkWriteDescriptorSet>({
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = _impl->get_or_create_set(set),
         .dstBinding = binding,
+        .dstArrayElement = array_element,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
         .pImageInfo = tmpPtr<VkDescriptorImageInfo>({
@@ -178,11 +143,6 @@ void DescriptorBindHelper::set_texture_image(uint32_t set, uint32_t binding, Ima
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
         }),
     }), 0, nullptr);
-
-    auto deviceHandle = device.device.device;
-    _impl->cleanup.push_back([=]() {
-        vkDestroyImageView(deviceHandle, view, nullptr);
-    });
 }
 
 void DescriptorBindHelper::commit(VkCommandBuffer cmdbuf) {

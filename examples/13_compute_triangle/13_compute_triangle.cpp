@@ -62,7 +62,7 @@ int main() {
 
             vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
             auto shader_bind_helper = shader.create_bind_helper();
-            shader_bind_helper->set_storage_image(0, 0, image);
+            shader_bind_helper->set_storage_image(0, 0, image.whole_image_view());
             shader_bind_helper->commit(cmdbuf);
 
             // update the push constant data on the host...

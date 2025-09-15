@@ -54,19 +54,38 @@ ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFl
             return false;
         };
 
+        const Type* res_type = def->payload.global_variable.type;
+        int64_t array_size = 1;
+        if (res_type->tag == ArrType_TAG) {
+            if (res_type->payload.arr_type.size) {
+                array_size = shd_get_int_value(res_type->payload.arr_type.size, false);
+            } else {
+                // unsized!
+                array_size = 0;
+            }
+            res_type = res_type->payload.arr_type.element_type;
+        }
+
         std::optional<VkDescriptorType> desc_type;
-        if (def->payload.global_variable.type->tag == ImageType_TAG)
-            desc_type = def->payload.global_variable.type->payload.image_type.sampled ? VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE : VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        else if (def->payload.global_variable.type->tag == SampledImageType_TAG)
+        if (res_type->tag == ImageType_TAG) {
+            switch (res_type->payload.image_type.sampled) {
+                case 1: desc_type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE; break;
+                case 2: desc_type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; break;
+                default: {
+                    throw std::runtime_error("Images need to be sampled (1) or storage (2)");
+                }
+            }
+        }
+        else if (res_type->tag == SampledImageType_TAG)
             desc_type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        else if (def->payload.global_variable.type->tag == SamplerType_TAG)
+        else if (res_type->tag == SamplerType_TAG)
             desc_type = VK_DESCRIPTOR_TYPE_SAMPLER;
-        else if (is_as(def->payload.global_variable.type))
+        else if (is_as(res_type))
             desc_type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
         else {
             switch (def->payload.global_variable.address_space) {
                 case AsPushConstant: {
-                    TypeMemLayout layout = shd_get_mem_layout(shd_module_get_arena(module), def->payload.global_variable.type);
+                    TypeMemLayout layout = shd_get_mem_layout(shd_module_get_arena(module), res_type);
                     push_constants.push_back((VkPushConstantRange) {
                         .stageFlags = stage,
                         .offset = 0,
@@ -91,13 +110,12 @@ ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFl
             assert(binding && set);
             uint32_t seti = shd_get_int_value(shd_get_annotation_value(set), false);
             uint32_t bindingi = shd_get_int_value(shd_get_annotation_value(binding), false);
-            uint32_t count = 1;
             if (!set_bindings.contains(seti))
                 set_bindings[seti] = std::vector<VkDescriptorSetLayoutBinding>();
             set_bindings[seti].push_back({
                 .binding = bindingi,
                 .descriptorType = *desc_type,
-                .descriptorCount = count,
+                .descriptorCount = static_cast<uint32_t>(array_size),
                 .stageFlags = stage,
             });
         }
@@ -148,8 +166,22 @@ PipelineLayout::PipelineLayout(imr::Device& device, imr::ReflectedLayout& reflec
     set_layouts.resize(max_set + 1);
     for (unsigned set = 0; set < max_set + 1; set++) {
         auto& bindings = reflected_layout.set_bindings[set];
+        std::vector<VkDescriptorBindingFlags> flags;
+        flags.resize(bindings.size());
+        for (auto binding : bindings) {
+            if (binding.descriptorCount == 0)
+                flags[binding.binding] |= VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
+        }
+
+        VkDescriptorSetLayoutBindingFlagsCreateInfo flags_for_bindings_info = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+            .bindingCount = static_cast<uint32_t>(bindings.size()),
+            .pBindingFlags = flags.data()
+        };
+
         CHECK_VK_THROW(vkCreateDescriptorSetLayout(device.device, tmpPtr<VkDescriptorSetLayoutCreateInfo>({
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .pNext = &flags_for_bindings_info,
             .bindingCount = static_cast<uint32_t>(bindings.size()),
             .pBindings = bindings.data(),
         }), nullptr, &set_layouts[set]));
