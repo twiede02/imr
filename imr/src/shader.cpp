@@ -56,7 +56,7 @@ ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFl
             switch (def->payload.global_variable.address_space) {
                 case AsPushConstant: {
                     TypeMemLayout layout = shd_get_mem_layout(shd_module_get_arena(module), def->payload.global_variable.type);
-                    push_constants.push_back((VkPushConstantRange) {
+                    push_constants.push_back({
                         .stageFlags = stage,
                         .offset = 0,
                         .size = static_cast<uint32_t>(layout.size_in_bytes),
@@ -83,7 +83,7 @@ ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFl
             uint32_t count = 1;
             if (!set_bindings.contains(seti))
                 set_bindings[seti] = std::vector<VkDescriptorSetLayoutBinding>();
-            set_bindings[seti].push_back((VkDescriptorSetLayoutBinding) {
+            set_bindings[seti].push_back({
                 .binding = bindingi,
                 .descriptorType = *desc_type,
                 .descriptorCount = count,
@@ -137,14 +137,14 @@ PipelineLayout::PipelineLayout(imr::Device& device, imr::ReflectedLayout& reflec
     set_layouts.resize(max_set + 1);
     for (unsigned set = 0; set < max_set + 1; set++) {
         auto& bindings = reflected_layout.set_bindings[set];
-        CHECK_VK_THROW(vkCreateDescriptorSetLayout(device.device, tmpPtr((VkDescriptorSetLayoutCreateInfo) {
+        CHECK_VK_THROW(vkCreateDescriptorSetLayout(device.device, tmpPtr<VkDescriptorSetLayoutCreateInfo>({
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
             .bindingCount = static_cast<uint32_t>(bindings.size()),
             .pBindings = bindings.data(),
         }), nullptr, &set_layouts[set]));
     }
 
-    CHECK_VK_THROW(vkCreatePipelineLayout(device.device, tmpPtr((VkPipelineLayoutCreateInfo) {
+    CHECK_VK_THROW(vkCreatePipelineLayout(device.device, tmpPtr<VkPipelineLayoutCreateInfo>({
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = static_cast<uint32_t>(set_layouts.size()),
         .pSetLayouts = set_layouts.data(),
@@ -166,7 +166,7 @@ ShaderModule::ShaderModule(imr::Device& device, std::string&& spirv_filename) no
 
 ShaderModule::Impl::Impl(imr::Device& device, imr::SPIRVModule&& spirv_module) noexcept(false) : device(device), spirv_module(std::move(spirv_module)) {
     assert(this->spirv_module.size() > 0);
-    CHECK_VK(vkCreateShaderModule(device.device, tmpPtr((VkShaderModuleCreateInfo) {
+    CHECK_VK(vkCreateShaderModule(device.device, tmpPtr<VkShaderModuleCreateInfo>({
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
             .flags = 0,
             .codeSize = this->spirv_module.size() * 4,
@@ -204,7 +204,7 @@ ComputePipeline::Impl::Impl(imr::Device& device, imr::ShaderEntryPoint& entry_po
     layout = std::make_unique<PipelineLayout>(device, *entry_point._impl->reflected);
 
     pipeline = VK_NULL_HANDLE;
-    CHECK_VK_THROW(vkCreateComputePipelines(device.device, VK_NULL_HANDLE, 1, tmpPtr((VkComputePipelineCreateInfo) {
+    CHECK_VK_THROW(vkCreateComputePipelines(device.device, VK_NULL_HANDLE, 1, tmpPtr<VkComputePipelineCreateInfo>({
             .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
             .flags = 0,
             .stage = {

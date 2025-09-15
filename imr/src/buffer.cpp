@@ -31,7 +31,7 @@ Buffer::Buffer(imr::Device& device, size_t size, VkBufferUsageFlags usage, VkMem
 }
 
 VkDeviceAddress Buffer::device_address() {
-    return vkGetBufferDeviceAddress(_impl->device.device, tmpPtr((VkBufferDeviceAddressInfo) {
+    return vkGetBufferDeviceAddress(_impl->device.device, tmpPtr<VkBufferDeviceAddressInfo>({
         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
         .buffer = handle,
     }));
@@ -50,12 +50,12 @@ void Buffer::uploadDataSync(uint64_t offset, uint64_t size, void* data) {
         staging.uploadDataSync(0, size, data);
 
         device.executeCommandsSync([&](VkCommandBuffer cmdbuf) {
-            vkCmdCopyBuffer2(cmdbuf, tmpPtr((VkCopyBufferInfo2) {
+            vkCmdCopyBuffer2(cmdbuf, tmpPtr<VkCopyBufferInfo2>({
                 .sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
                 .srcBuffer = staging.handle,
                 .dstBuffer = handle,
                 .regionCount = 1,
-                .pRegions = tmpPtr((VkBufferCopy2) {
+                .pRegions = tmpPtr<VkBufferCopy2>({
                     .sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2,
                     .srcOffset = 0,
                     .dstOffset = offset,

@@ -4,13 +4,13 @@ namespace imr {
 
 void Device::executeCommandsSync(std::function<void(VkCommandBuffer)> lambda) {
     VkCommandBuffer cmdbuf;
-    vkAllocateCommandBuffers(device.device, tmpPtr((VkCommandBufferAllocateInfo) {
+    vkAllocateCommandBuffers(device.device, tmpPtr<VkCommandBufferAllocateInfo>({
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .commandPool = pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
     }), &cmdbuf);
-    vkBeginCommandBuffer(cmdbuf, tmpPtr((VkCommandBufferBeginInfo) {
+    vkBeginCommandBuffer(cmdbuf, tmpPtr<VkCommandBufferBeginInfo>({
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
     }));
@@ -18,13 +18,13 @@ void Device::executeCommandsSync(std::function<void(VkCommandBuffer)> lambda) {
     lambda(cmdbuf);
 
     VkFence fence;
-    vkCreateFence(device.device, tmpPtr((VkFenceCreateInfo) {
+    vkCreateFence(device.device, tmpPtr<VkFenceCreateInfo>({
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = 0,
     }), nullptr, &fence);
 
     vkEndCommandBuffer(cmdbuf);
-    vkQueueSubmit(main_queue, 1, tmpPtr((VkSubmitInfo) {
+    vkQueueSubmit(main_queue, 1, tmpPtr<VkSubmitInfo>({
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .waitSemaphoreCount = 0,
         .pWaitSemaphores = nullptr,

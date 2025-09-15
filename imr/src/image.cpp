@@ -317,7 +317,7 @@ static VkImageAspectFlagBits aspects_from_format(VkFormat format) {
 
 VkImageSubresourceRange Image::whole_image_subresource_range() const {
     VkImageSubresourceRange range = {
-        .aspectMask = aspects_from_format(format()),
+        .aspectMask = static_cast<VkImageAspectFlags>(aspects_from_format(format())),
         .baseMipLevel = 0,
         .levelCount = 1,
         .baseArrayLayer = 0,

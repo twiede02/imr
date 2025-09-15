@@ -9,27 +9,27 @@ static auto make_default_device_selector(Context& context) {
         .add_required_extension("VK_KHR_dynamic_rendering")
         .add_required_extension("VK_KHR_synchronization2")
         .set_minimum_version(1, 2)
-        .set_required_features((VkPhysicalDeviceFeatures) {
+        .set_required_features(VkPhysicalDeviceFeatures({
             .shaderUniformBufferArrayDynamicIndexing = true,
-        })
+        }))
         .defer_surface_initialization()
-        .add_required_extension_features((VkPhysicalDeviceScalarBlockLayoutFeatures) {
+        .add_required_extension_features(VkPhysicalDeviceScalarBlockLayoutFeatures({
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SCALAR_BLOCK_LAYOUT_FEATURES,
             .scalarBlockLayout = true,
-        })
-        .add_required_extension_features((VkPhysicalDeviceBufferDeviceAddressFeatures) {
+        }))
+        .add_required_extension_features(VkPhysicalDeviceBufferDeviceAddressFeatures({
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES,
             .bufferDeviceAddress = true,
-        })
-        .add_required_extension_features((VkPhysicalDeviceSynchronization2FeaturesKHR) {
+        }))
+        .add_required_extension_features(VkPhysicalDeviceSynchronization2FeaturesKHR({
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR,
             .pNext = nullptr,
             .synchronization2 = true,
-        })
-        .add_required_extension_features((VkPhysicalDeviceDynamicRenderingFeaturesKHR) {
+        }))
+        .add_required_extension_features(VkPhysicalDeviceDynamicRenderingFeaturesKHR({
                 .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR,
                 .dynamicRendering = VK_TRUE
-        });
+        }));
     return device_selector;
 }
 
@@ -64,12 +64,12 @@ Device::Device(imr::Context& context, vkb::PhysicalDevice physical_device) : con
     main_queue_idx = device.get_queue_index(vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)).value();
     main_queue = device.get_queue(vkb::QueueType((int) vkb::QueueType::graphics | (int) vkb::QueueType::present)).value();
 
-    CHECK_VK(vkCreateCommandPool(device, tmpPtr((VkCommandPoolCreateInfo) {
+    CHECK_VK(vkCreateCommandPool(device, tmpPtr<VkCommandPoolCreateInfo>({
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .queueFamilyIndex = main_queue_idx,
     }), nullptr, &pool), throw std::runtime_error("failed to create cmdpool"));
 
-    CHECK_VK(vmaCreateAllocator(tmpPtr((VmaAllocatorCreateInfo) {
+    CHECK_VK(vmaCreateAllocator(tmpPtr<VmaAllocatorCreateInfo>({
         .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
         .physicalDevice = physical_device,
         .device = device,
