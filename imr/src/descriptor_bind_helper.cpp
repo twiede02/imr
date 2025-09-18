@@ -40,7 +40,7 @@ struct DescriptorBindHelper::Impl {
             pool_sizes.push_back(size);
         }
 
-        vkCreateDescriptorPool(vk.device, tmpPtr((VkDescriptorPoolCreateInfo) {
+        vkCreateDescriptorPool(vk.device, tmpPtr<VkDescriptorPoolCreateInfo>({
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
             .maxSets = static_cast<uint32_t>(layout.set_layouts.size()),
@@ -54,7 +54,7 @@ struct DescriptorBindHelper::Impl {
     // Lazily allocates the set if we need it
     VkDescriptorSet get_or_create_set(unsigned set) {
         if (sets[set] == 0) {
-            CHECK_VK_THROW(vkAllocateDescriptorSets(device.device, tmpPtr((VkDescriptorSetAllocateInfo) {
+            CHECK_VK_THROW(vkAllocateDescriptorSets(device.device, tmpPtr<VkDescriptorSetAllocateInfo>({
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                 .descriptorPool = pool,
                 .descriptorSetCount = 1,
@@ -95,6 +95,11 @@ DescriptorBindHelper* RayTracingPipeline::create_bind_helper() {
     return new DescriptorBindHelper(std::move(impl));
 }
 
+DescriptorBindHelper* RayTracingPipeline::create_bind_helper() {
+    auto impl = std::make_unique<DescriptorBindHelper::Impl>(_impl->device, *_impl->layout, _impl->final_layout, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR);
+    return new DescriptorBindHelper(std::move(impl));
+}
+
 VkImageViewType image_type_to_view_type(VkImageType type) {
     switch (type) {
         case VK_IMAGE_TYPE_1D: return VK_IMAGE_VIEW_TYPE_1D;
@@ -104,39 +109,136 @@ VkImageViewType image_type_to_view_type(VkImageType type) {
     }
 }
 
-void DescriptorBindHelper::set_storage_image(uint32_t set, uint32_t binding, Image& image, std::optional<VkImageSubresourceRange> subresource, std::optional<VkImageViewType> image_view_type) {
+void DescriptorBindHelper::set_storage_image(uint32_t set, uint32_t binding, VkImageView view, uint32_t array_element) {
     assert(!_impl->committed);
     auto& device = _impl->device;
 
-    VkImageViewType final_image_view_type = image_view_type ? *image_view_type : image_type_to_view_type(image.type());
-    VkImageSubresourceRange subresource_range = subresource ? *subresource : image.whole_image_subresource_range();
-
-    VkImageView view;
-    vkCreateImageView(device.device, tmpPtr((VkImageViewCreateInfo) {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image.handle(),
-        .viewType = final_image_view_type,
-        .format = image.format(),
-        .subresourceRange = subresource_range,
-    }), nullptr, &view);
-
-    vkUpdateDescriptorSets(device.device, 1, tmpPtr((VkWriteDescriptorSet) {
+    vkUpdateDescriptorSets(device.device, 1, tmpPtr<VkWriteDescriptorSet>({
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = _impl->get_or_create_set(set),
         .dstBinding = binding,
+        .dstArrayElement = array_element,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-        .pImageInfo = tmpPtr((VkDescriptorImageInfo) {
+        .pImageInfo = tmpPtr<VkDescriptorImageInfo>({
             .sampler = VK_NULL_HANDLE,
             .imageView = view,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
         }),
     }), 0, nullptr);
-
     auto deviceHandle = device.device.device;
     _impl->cleanup.push_back([=]() {
         vkDestroyImageView(deviceHandle, view, nullptr);
     });
+}
+
+void DescriptorBindHelper::set_sampler(uint32_t set, uint32_t binding, VkSampler sampler, uint32_t array_element) {
+    assert(!_impl->committed);
+    auto& device = _impl->device;
+
+    vkUpdateDescriptorSets(device.device, 1, tmpPtr<VkWriteDescriptorSet>({
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = _impl->get_or_create_set(set),
+        .dstBinding = binding,
+        .dstArrayElement = array_element,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+        .pImageInfo = tmpPtr<VkDescriptorImageInfo>({
+            .sampler = sampler,
+        }),
+    }), 0, nullptr);
+}
+
+void DescriptorBindHelper::set_texture_image(uint32_t set, uint32_t binding, VkImageView view, uint32_t array_element) {
+    assert(!_impl->committed);
+    auto& device = _impl->device;
+
+    vkUpdateDescriptorSets(device.device, 1, tmpPtr<VkWriteDescriptorSet>({
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = _impl->get_or_create_set(set),
+        .dstBinding = binding,
+        .dstArrayElement = array_element,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        .pImageInfo = tmpPtr<VkDescriptorImageInfo>({
+            .sampler = VK_NULL_HANDLE,
+            .imageView = view,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        }),
+    }), 0, nullptr);
+}
+
+void DescriptorBindHelper::set_uniform_buffer(uint32_t set, uint32_t binding, imr::Buffer& buffer, uint64_t offset) {
+    auto& device = _impl->device;
+    VkDescriptorBufferInfo dbi = {
+        .buffer = buffer.handle,
+        .offset = offset,
+        .range = buffer.size,
+    };
+
+    VkWriteDescriptorSet uniformBufferWrite = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = _impl->get_or_create_set(set),
+        .dstBinding = binding,
+
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .pBufferInfo = &dbi
+    };
+
+    std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+        uniformBufferWrite
+    };
+    vkUpdateDescriptorSets(device.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
+}
+
+void DescriptorBindHelper::set_storage_buffer(uint32_t set, uint32_t binding, imr::Buffer& buffer, uint64_t offset) {
+    auto& device = _impl->device;
+    VkDescriptorBufferInfo dbi = {
+        .buffer = buffer.handle,
+        .offset = offset,
+        .range = buffer.size,
+    };
+
+    VkWriteDescriptorSet storageBufferWrite = {
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = _impl->get_or_create_set(set),
+        .dstBinding = binding,
+
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .pBufferInfo = &dbi
+    };
+
+    std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+        storageBufferWrite
+    };
+
+    vkUpdateDescriptorSets(device.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
+
+}
+
+void DescriptorBindHelper::set_acceleration_structure(uint32_t set, uint32_t binding, imr::AccelerationStructure& as) {
+    auto& device = _impl->device;
+    VkWriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo{};
+    descriptorAccelerationStructureInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+    descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
+    VkAccelerationStructureKHR lmao = as.handle();
+    descriptorAccelerationStructureInfo.pAccelerationStructures = &lmao;
+
+    VkWriteDescriptorSet accelerationStructureWrite{};
+    accelerationStructureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    // The specialized acceleration structure descriptor has to be chained
+    accelerationStructureWrite.pNext = &descriptorAccelerationStructureInfo;
+    accelerationStructureWrite.dstSet = _impl->get_or_create_set(set);
+    accelerationStructureWrite.dstBinding = binding;
+    accelerationStructureWrite.descriptorCount = 1;
+    accelerationStructureWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+
+    std::vector<VkWriteDescriptorSet> writeDescriptorSets = {
+        accelerationStructureWrite,
+    };
+    vkUpdateDescriptorSets(device.device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, VK_NULL_HANDLE);
 }
 
 void DescriptorBindHelper::set_uniform_buffer(uint32_t set, uint32_t binding, imr::Buffer& buffer, uint64_t offset) {

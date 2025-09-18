@@ -10,6 +10,8 @@ struct Image::Impl {
     VkFormat format;
     std::optional<VmaAllocation> vma_allocation;
 
+    VkImageView view;
+
     Impl(Device& device, VkImageType type, VkExtent3D size, VkFormat format)
     : device(device), handle(VK_NULL_HANDLE), type(type), size(size), format(format) {}
     Impl(Device& device, VkImage existing_handle, VkImageType type, VkExtent3D size, VkFormat format)
@@ -20,6 +22,15 @@ VkImage Image::handle() const { return _impl->handle; }
 VkImageType Image::type() const { return _impl->type; }
 VkExtent3D Image::size() const { return _impl->size; }
 VkFormat Image::format() const { return _impl->format; }
+
+VkImageViewType image_type_to_view_type(VkImageType type) {
+    switch (type) {
+        case VK_IMAGE_TYPE_1D: return VK_IMAGE_VIEW_TYPE_1D;
+        case VK_IMAGE_TYPE_2D: return VK_IMAGE_VIEW_TYPE_2D;
+        case VK_IMAGE_TYPE_3D: return VK_IMAGE_VIEW_TYPE_3D;
+        default: throw std::runtime_error("Unknown image type");
+    }
+}
 
 Image::Image(Device& device, VkImageType dim, VkExtent3D size, VkFormat format, VkImageUsageFlagBits usage) {
     _impl = std::make_unique<Impl>(device, dim, size, format);
@@ -42,6 +53,14 @@ Image::Image(Device& device, VkImageType dim, VkExtent3D size, VkFormat format, 
     };
     VmaAllocation& vma_allocation = _impl->vma_allocation.emplace();
     vmaCreateImage(device._impl->allocator, &image_create_info, &alloc_info, &_impl->handle, &vma_allocation, nullptr);
+
+    vkCreateImageView(device.device, tmpPtr<VkImageViewCreateInfo>({
+       .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+       .image = handle(),
+       .viewType = image_type_to_view_type(type()),
+       .format = format,
+       .subresourceRange = whole_image_subresource_range(),
+    }), nullptr, &_impl->view);
 }
 
 Image make_image_from(Device& device, VkImage existing_handle, VkImageType dim, VkExtent3D size, VkFormat format) {
@@ -50,6 +69,13 @@ Image make_image_from(Device& device, VkImage existing_handle, VkImageType dim, 
 
 Image::Image(Impl&& impl) {
     _impl = std::make_unique<Impl>(impl);
+    vkCreateImageView(_impl->device.device, tmpPtr<VkImageViewCreateInfo>({
+       .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+       .image = handle(),
+       .viewType = image_type_to_view_type(type()),
+       .format = format(),
+       .subresourceRange = whole_image_subresource_range(),
+    }), nullptr, &_impl->view);
 }
 
 Image::Image(Image&& other) : _impl(std::move(other._impl)) {}
@@ -315,9 +341,13 @@ static VkImageAspectFlagBits aspects_from_format(VkFormat format) {
     throw std::runtime_error("TODO: unhandled format");
 }
 
+VkImageView Image::whole_image_view() {
+    return _impl->view;
+}
+
 VkImageSubresourceRange Image::whole_image_subresource_range() const {
     VkImageSubresourceRange range = {
-        .aspectMask = aspects_from_format(format()),
+        .aspectMask = static_cast<VkImageAspectFlags>(aspects_from_format(format())),
         .baseMipLevel = 0,
         .levelCount = 1,
         .baseArrayLayer = 0,
@@ -326,10 +356,22 @@ VkImageSubresourceRange Image::whole_image_subresource_range() const {
     return range;
 }
 
+VkImageSubresourceLayers Image::whole_image_subresource_layers() const {
+    VkImageSubresourceLayers range = {
+        .aspectMask = static_cast<VkImageAspectFlags>(aspects_from_format(format())),
+        .mipLevel = 0,
+        .baseArrayLayer = 0,
+        .layerCount = 1,
+    };
+    return range;
+}
+
 Image::~Image() {
-    if (_impl)
+    if (_impl) {
         if (_impl->vma_allocation)
             vmaDestroyImage(_impl->device._impl->allocator, _impl->handle, _impl->vma_allocation.value());
+        vkDestroyImageView(_impl->device.device, _impl->view, nullptr);
+    }
 }
 
 }

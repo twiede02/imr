@@ -20,7 +20,7 @@ void Swapchain::Frame::withRenderTargets(VkCommandBuffer cmdbuf, std::vector<Ima
     };
 
     for (auto color_image : color_images) {
-        vkCreateImageView(device.device, tmpPtr((VkImageViewCreateInfo) {
+        vkCreateImageView(device.device, tmpPtr<VkImageViewCreateInfo>({
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = color_image->handle(),
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
@@ -38,7 +38,7 @@ void Swapchain::Frame::withRenderTargets(VkCommandBuffer cmdbuf, std::vector<Ima
 
     VkImageView depth_view = VK_NULL_HANDLE;
     if (depth) {
-        vkCreateImageView(device.device, tmpPtr((VkImageViewCreateInfo) {
+        vkCreateImageView(device.device, tmpPtr<VkImageViewCreateInfo>({
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = depth->handle(),
             .viewType = VK_IMAGE_VIEW_TYPE_2D,
@@ -59,7 +59,7 @@ void Swapchain::Frame::withRenderTargets(VkCommandBuffer cmdbuf, std::vector<Ima
 
     std::vector<VkRenderingAttachmentInfo> color_attachments;
     for (auto color_view : color_views) {
-        color_attachments.push_back((VkRenderingAttachmentInfo) {
+        color_attachments.push_back({
             .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
             .imageView = color_view,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
@@ -68,7 +68,7 @@ void Swapchain::Frame::withRenderTargets(VkCommandBuffer cmdbuf, std::vector<Ima
         });
     }
 
-    VkRenderingAttachmentInfo depth_attachment = (VkRenderingAttachmentInfo) {
+    VkRenderingAttachmentInfo depth_attachment = {
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
         .imageView = depth_view,
         .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
@@ -76,7 +76,7 @@ void Swapchain::Frame::withRenderTargets(VkCommandBuffer cmdbuf, std::vector<Ima
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
     };
 
-    vkCmdBeginRendering(cmdbuf, tmpPtr((VkRenderingInfo) {
+    vkCmdBeginRendering(cmdbuf, tmpPtr<VkRenderingInfo>({
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
         .renderArea = {
             .extent = {

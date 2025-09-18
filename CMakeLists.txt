@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.28)
 project(imr)
 
 find_package(Vulkan REQUIRED)
-option(IMR_USE_CUSTOM_GLFW "" OFF)
-if (IMR_USE_CUSTOM_GLFW)
+option(IMR_FETCH_GLFW "" OFF)
+if (IMR_FETCH_GLFW)
     include(FetchContent)
     option(GLFW_BUILD_TESTS "" OFF)
     option(GLFW_BUILD_DOCS "" OFF)
@@ -20,9 +20,9 @@ else ()
     find_package(glfw3 REQUIRED)
 endif ()
 
-option(IMR_USE_CUSTOM_shady "" ON)
-if (IMR_USE_CUSTOM_shady)
-    message("Grabbing shady using FetchContent")
+option(IMR_FETCH_shady "" OFF)
+if (IMR_FETCH_shady)
+    message("Grabbing shady (and nasl!) using FetchContent")
     include(FetchContent)
     FetchContent_Declare(
         shady

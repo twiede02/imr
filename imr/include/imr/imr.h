@@ -91,7 +91,9 @@ struct Image {
     Image(Image&&);
     ~Image();
 
+    VkImageView whole_image_view();
     VkImageSubresourceRange whole_image_subresource_range() const;
+    VkImageSubresourceLayers whole_image_subresource_layers() const;
 
     struct Impl;
     Image(Impl&&);
@@ -134,7 +136,9 @@ struct DescriptorBindHelper {
     DescriptorBindHelper(DescriptorBindHelper&) = delete;
     ~DescriptorBindHelper();
 
-    void set_storage_image(uint32_t set, uint32_t binding, Image& image, std::optional<VkImageSubresourceRange> = std::nullopt, std::optional<VkImageViewType> = std::nullopt);
+    void set_storage_image(uint32_t set, uint32_t binding, VkImageView, uint32_t array_element = 0);
+    void set_sampler(uint32_t set, uint32_t binding, VkSampler, uint32_t array_element = 0);
+    void set_texture_image(uint32_t set, uint32_t binding, VkImageView, uint32_t array_element = 0);
     void set_acceleration_structure(uint32_t set, uint32_t binding, imr::AccelerationStructure&);
     void set_uniform_buffer(uint32_t set, uint32_t binding, imr::Buffer&, uint64_t offset = 0);
     void set_storage_buffer(uint32_t set, uint32_t binding, imr::Buffer&, uint64_t offset = 0);

@@ -320,8 +320,8 @@ int main(int argc, char** argv) {
                     auto& shader = shaders->single;
                     vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
                     auto shader_bind_helper = shader.create_bind_helper();
-                    shader_bind_helper->set_storage_image(0, 0, image);
-                    shader_bind_helper->set_storage_image(0, 1, *depthBuffer);
+                    shader_bind_helper->set_storage_image(0, 0, image.whole_image_view());
+                    shader_bind_helper->set_storage_image(0, 1, depthBuffer->whole_image_view());
                     shader_bind_helper->commit(cmdbuf);
 
                     push_constants_single.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
@@ -354,8 +354,8 @@ int main(int argc, char** argv) {
                     auto& shader = shaders->batched;
                     vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
                     auto shader_bind_helper = shader.create_bind_helper();
-                    shader_bind_helper->set_storage_image(0, 0, image);
-                    shader_bind_helper->set_storage_image(0, 1, *depthBuffer);
+                    shader_bind_helper->set_storage_image(0, 0, image.whole_image_view());
+                    shader_bind_helper->set_storage_image(0, 1, depthBuffer->whole_image_view());
                     shader_bind_helper->commit(cmdbuf);
 
                     push_constants_batched.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
@@ -381,8 +381,8 @@ int main(int argc, char** argv) {
                     auto& shader = shaders->instanced;
                     vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, shader.pipeline());
                     auto shader_bind_helper = shader.create_bind_helper();
-                    shader_bind_helper->set_storage_image(0, 0, image);
-                    shader_bind_helper->set_storage_image(0, 1, *depthBuffer);
+                    shader_bind_helper->set_storage_image(0, 0, image.whole_image_view());
+                    shader_bind_helper->set_storage_image(0, 1, depthBuffer->whole_image_view());
                     shader_bind_helper->commit(cmdbuf);
 
                     push_constants_instanced.time = ((imr_get_time_nano() / 1000) % 10000000000) / 1000000.0f;
@@ -438,8 +438,8 @@ int main(int argc, char** argv) {
                     auto& rasterizer_shader = shaders->pipelined_raster;
                     vkCmdBindPipeline(cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, rasterizer_shader.pipeline());
                     auto shader_bind_helper = rasterizer_shader.create_bind_helper();
-                    shader_bind_helper->set_storage_image(0, 0, image);
-                    shader_bind_helper->set_storage_image(0, 1, *depthBuffer);
+                    shader_bind_helper->set_storage_image(0, 0, image.whole_image_view());
+                    shader_bind_helper->set_storage_image(0, 1, depthBuffer->whole_image_view());
                     shader_bind_helper->commit(cmdbuf);
 
                     push_constants_pipelined_frag.preprocessed_tri_buffer = tmp_buffer->device_address();
