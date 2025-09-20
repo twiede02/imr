@@ -17,6 +17,15 @@ struct ReflectedLayout {
     ReflectedLayout() = default;
     ReflectedLayout(SPIRVModule& spirv_module, VkShaderStageFlags stage);
     ReflectedLayout(ReflectedLayout& a, ReflectedLayout& b);
+
+    const VkDescriptorSetLayoutBinding* find_binding(uint32_t set, uint32_t binding) const {
+        auto it = set_bindings.find(set);
+        if (it == set_bindings.end()) return nullptr;
+        for (auto& b : it->second) {
+            if (b.binding == binding) return &b;
+        }
+        return nullptr;
+    }
 };
 
 /// Turns the ReflectedLayout into the VkDescriptorSetLayout s and VkPipelineLayout

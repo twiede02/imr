@@ -102,7 +102,7 @@ public:
 
     Camera camera {
         .position = {0, 0, -2.5f},
-        .rotation = {0},
+        .rotation = {2.4, 0.0},
         .fov = 60.0,
     };
     CameraFreelookState camera_state = {
@@ -212,7 +212,7 @@ public:
 
         auto bind_helper = pipeline->create_bind_helper();
         bind_helper->set_acceleration_structure(0, 0, *topLevelAS);
-        bind_helper->set_storage_image(0, 1, *storage_image);
+        bind_helper->set_storage_image(0, 1, storage_image->whole_image_view());
         bind_helper->set_uniform_buffer(0, 2, *ubo);
         bind_helper->commit(cmdbuf);
 
