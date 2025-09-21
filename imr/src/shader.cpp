@@ -111,7 +111,6 @@ ReflectedLayout::ReflectedLayout(imr::SPIRVModule& spirv_module, VkShaderStageFl
             uint32_t seti = shd_get_int_value(shd_get_annotation_value(set), false);
             uint32_t bindingi = shd_get_int_value(shd_get_annotation_value(binding), false);
 
-            printf("Reflected binding: set %d binding %d type %d array_size %ld\n", seti, bindingi, *desc_type, array_size);
             if (!set_bindings.contains(seti))
                 set_bindings[seti] = std::vector<VkDescriptorSetLayoutBinding>();
             set_bindings[seti].push_back({
