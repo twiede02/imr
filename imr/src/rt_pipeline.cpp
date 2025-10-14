@@ -179,7 +179,7 @@ namespace imr {
         rayTracingPipelineCI.pStages = shaderStages.data();
         rayTracingPipelineCI.groupCount = static_cast<uint32_t>(shaderGroups.size());
         rayTracingPipelineCI.pGroups = shaderGroups.data();
-        rayTracingPipelineCI.maxPipelineRayRecursionDepth = 2;
+        rayTracingPipelineCI.maxPipelineRayRecursionDepth = 4;
         rayTracingPipelineCI.layout = layout->pipeline_layout;
         vk.createRayTracingPipelinesKHR(VK_NULL_HANDLE, VK_NULL_HANDLE, 1, &rayTracingPipelineCI, nullptr, &pipeline);
     }
